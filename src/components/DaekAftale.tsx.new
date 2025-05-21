@@ -1,0 +1,726 @@
+import React, { useState } from 'react';
+import { FaInfoCircle, FaSun, FaSnowflake, FaCalendarDay, FaCheck } from 'react-icons/fa';
+
+// Definerer dækbrands for hver kategori med beskrivelser
+const daekBrands = {
+  budget: {
+    title: 'Budget dækbrands',
+    description: 'Prisvenlige dæk med god værdi for pengene. Velegnet til biler med lavt kilometerbehov.',
+    brands: ['Sailun', 'Jinyu', 'Fortuna', 'Nankang', 'Maxxis']
+  },
+  economy: {
+    title: 'Economy dækbrands',
+    description: 'Mellemklassedæk med god balance mellem pris og kvalitet. God holdbarhed og levetid.',
+    brands: ['Falken', 'Hankook', 'Nexen', 'Kumho', 'Toyo']
+  },
+  premium: {
+    title: 'Premium dækbrands',
+    description: 'Højkvalitetsdæk fra førende producenter med førsteklasses egenskaber i både vådt og tørt føre.',
+    brands: ['Michelin', 'Continental', 'Bridgestone', 'Pirelli', 'Goodyear']
+  }
+};
+
+interface DaekStoerrelse {
+  bredde: string;
+  profil: string;
+  diameter: string;
+}
+
+interface DaekError {
+  bredde: boolean;
+  profil: boolean;
+  diameter: boolean;
+}
+
+interface DaekAftaleProps {
+  onChange?: (values: any) => void;
+}
+
+const DaekAftale: React.FC<DaekAftaleProps> = ({ onChange }) => {
+  // Valgte dæksæsoner
+  const [valgteTyper, setValgteTyper] = useState<{
+    sommer: boolean;
+    vinter: boolean;
+    helaar: boolean;
+  }>({ sommer: true, vinter: false, helaar: false });
+  
+  const [kategoriSommer, setKategoriSommer] = useState<'budget' | 'economy' | 'premium'>('economy');
+  const [kategoriVinter, setKategoriVinter] = useState<'budget' | 'economy' | 'premium'>('economy');
+  const [kategoriHelaar, setKategoriHelaar] = useState<'budget' | 'economy' | 'premium'>('economy');
+  
+  const [showBrands, setShowBrands] = useState<string | null>(null);
+  
+  // Dækstørrelser for de forskellige sæsoner
+  const [sommerDaekStoerrelse, setSommerDaekStoerrelse] = useState<DaekStoerrelse>({ bredde: '', profil: '', diameter: '' });
+  const [vinterDaekStoerrelse, setVinterDaekStoerrelse] = useState<DaekStoerrelse>({ bredde: '', profil: '', diameter: '' });
+  const [helaarDaekStoerrelse, setHelaarDaekStoerrelse] = useState<DaekStoerrelse>({ bredde: '', profil: '', diameter: '' });
+  
+  // Valideringsfejl for dækstørrelser
+  const [sommerErrors, setSommerErrors] = useState<DaekError>({ bredde: false, profil: false, diameter: false });
+  const [vinterErrors, setVinterErrors] = useState<DaekError>({ bredde: false, profil: false, diameter: false });
+  const [helaarErrors, setHelaarErrors] = useState<DaekError>({ bredde: false, profil: false, diameter: false });
+  
+  // Valideringsbeskeder for visning til brugeren
+  const errorMessages = {
+    bredde: 'Skal være 3 cifre mellem 135-395 og delelig med 5',
+    profil: 'Skal være 2 cifre mellem 20-95 og delelig med 5',
+    diameter: 'Skal være 2 cifre mellem 15-23'
+  };
+  
+  // Håndterer valg af dæksæson 
+  const handleDaekTypeValg = (type: 'sommer' | 'vinter' | 'helaar') => {
+    if (type === 'helaar') {
+      // Når helårsdæk vælges, skal sommer og vinterdæk deaktiveres
+      setValgteTyper({ sommer: false, vinter: false, helaar: true });
+    } else if (type === 'sommer') {
+      if (valgteTyper.helaar) {
+        // Hvis helårsdæk er valgt og sommer vælges, deaktiver helårsdæk
+        setValgteTyper({ sommer: true, vinter: valgteTyper.vinter, helaar: false });
+      } else {
+        // Normal toggle for sommerdæk
+        setValgteTyper(prev => ({ ...prev, sommer: !prev.sommer }));
+      }
+    } else if (type === 'vinter') {
+      if (valgteTyper.helaar) {
+        // Hvis helårsdæk er valgt og vinter vælges, deaktiver helårsdæk
+        setValgteTyper({ sommer: valgteTyper.sommer, vinter: true, helaar: false });
+      } else {
+        // Normal toggle for vinterdæk
+        setValgteTyper(prev => ({ ...prev, vinter: !prev.vinter }));
+      }
+    }
+  };
+
+  // Valideringsfunktioner
+  const validerBredde = (value: string): boolean => {
+    if (value === '') return true; // Tom værdi er ok (ikke fejl)
+    if (value.length !== 3) return false; // Skal være præcis 3 cifre
+    
+    const num = parseInt(value);
+    return num >= 135 && num <= 395 && num % 5 === 0; // Mellem 135-395 og delelig med 5
+  };
+
+  const validerProfil = (value: string): boolean => {
+    if (value === '') return true; // Tom værdi er ok (ikke fejl)
+    if (value.length !== 2) return false; // Skal være præcis 2 cifre
+    
+    const num = parseInt(value);
+    return num >= 20 && num <= 95 && num % 5 === 0; // Mellem 20-95 og delelig med 5
+  };
+
+  const validerDiameter = (value: string): boolean => {
+    if (value === '') return true; // Tom værdi er ok (ikke fejl)
+    if (value.length !== 2) return false; // Skal være præcis 2 cifre
+    
+    const num = parseInt(value);
+    return num >= 15 && num <= 23; // Mellem 15-23
+  };
+  
+  // Håndterer ændringer i bredde-felt
+  const handleBreddeChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'sommer' | 'vinter' | 'helaar') => {
+    const { value } = event.target;
+    
+    // Tillader kun tal og max 3 cifre
+    if (!/^\d{0,3}$/.test(value)) return;
+    
+    // Opdater værdien og valider
+    if (type === 'sommer') {
+      setSommerDaekStoerrelse({ ...sommerDaekStoerrelse, bredde: value });
+      
+      // Validering når feltet er udfyldt (3 cifre)
+      if (value.length === 3) {
+        const isValid = validerBredde(value);
+        setSommerErrors({ ...sommerErrors, bredde: !isValid });
+        
+        // Hop automatisk til næste felt hvis valid
+        if (isValid) {
+          document.getElementById('sommer-profil')?.focus();
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 3 cifre
+        setSommerErrors({ ...sommerErrors, bredde: false });
+      }
+    } else if (type === 'vinter') {
+      setVinterDaekStoerrelse({ ...vinterDaekStoerrelse, bredde: value });
+      
+      // Validering når feltet er udfyldt (3 cifre)
+      if (value.length === 3) {
+        const isValid = validerBredde(value);
+        setVinterErrors({ ...vinterErrors, bredde: !isValid });
+        
+        // Hop automatisk til næste felt hvis valid
+        if (isValid) {
+          document.getElementById('vinter-profil')?.focus();
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 3 cifre
+        setVinterErrors({ ...vinterErrors, bredde: false });
+      }
+    } else {
+      setHelaarDaekStoerrelse({ ...helaarDaekStoerrelse, bredde: value });
+      
+      // Validering når feltet er udfyldt (3 cifre)
+      if (value.length === 3) {
+        const isValid = validerBredde(value);
+        setHelaarErrors({ ...helaarErrors, bredde: !isValid });
+        
+        // Hop automatisk til næste felt hvis valid
+        if (isValid) {
+          document.getElementById('helaar-profil')?.focus();
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 3 cifre
+        setHelaarErrors({ ...helaarErrors, bredde: false });
+      }
+    }
+  };
+  
+  // Håndterer ændringer i profil-felt
+  const handleProfilChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'sommer' | 'vinter' | 'helaar') => {
+    const { value } = event.target;
+    
+    // Tillader kun tal og max 2 cifre
+    if (!/^\d{0,2}$/.test(value)) return;
+    
+    // Opdater værdien og valider
+    if (type === 'sommer') {
+      setSommerDaekStoerrelse({ ...sommerDaekStoerrelse, profil: value });
+      
+      // Validering når feltet er udfyldt (2 cifre)
+      if (value.length === 2) {
+        const isValid = validerProfil(value);
+        setSommerErrors({ ...sommerErrors, profil: !isValid });
+        
+        // Hop automatisk til næste felt hvis valid
+        if (isValid) {
+          document.getElementById('sommer-diameter')?.focus();
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 2 cifre
+        setSommerErrors({ ...sommerErrors, profil: false });
+      }
+    } else if (type === 'vinter') {
+      setVinterDaekStoerrelse({ ...vinterDaekStoerrelse, profil: value });
+      
+      // Validering når feltet er udfyldt (2 cifre)
+      if (value.length === 2) {
+        const isValid = validerProfil(value);
+        setVinterErrors({ ...vinterErrors, profil: !isValid });
+        
+        // Hop automatisk til næste felt hvis valid
+        if (isValid) {
+          document.getElementById('vinter-diameter')?.focus();
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 2 cifre
+        setVinterErrors({ ...vinterErrors, profil: false });
+      }
+    } else {
+      setHelaarDaekStoerrelse({ ...helaarDaekStoerrelse, profil: value });
+      
+      // Validering når feltet er udfyldt (2 cifre)
+      if (value.length === 2) {
+        const isValid = validerProfil(value);
+        setHelaarErrors({ ...helaarErrors, profil: !isValid });
+        
+        // Hop automatisk til næste felt hvis valid
+        if (isValid) {
+          document.getElementById('helaar-diameter')?.focus();
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 2 cifre
+        setHelaarErrors({ ...helaarErrors, profil: false });
+      }
+    }
+  };
+  
+  // Håndterer ændringer i diameter-felt
+  const handleDiameterChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'sommer' | 'vinter' | 'helaar') => {
+    const { value } = event.target;
+    
+    // Tillader kun tal og max 2 cifre
+    if (!/^\d{0,2}$/.test(value)) return;
+    
+    // Opdater værdien og valider
+    if (type === 'sommer') {
+      setSommerDaekStoerrelse({ ...sommerDaekStoerrelse, diameter: value });
+      
+      // Validering når feltet er udfyldt (2 cifre)
+      if (value.length === 2) {
+        const isValid = validerDiameter(value);
+        setSommerErrors({ ...sommerErrors, diameter: !isValid });
+        
+        // Notificer om opdatering hvis valid
+        if (isValid && onChange) {
+          onChange({
+            valgteTyper,
+            kategoriSommer,
+            kategoriVinter,
+            kategoriHelaar,
+            sommerDaekStoerrelse: { ...sommerDaekStoerrelse, diameter: value },
+            vinterDaekStoerrelse,
+            helaarDaekStoerrelse
+          });
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 2 cifre
+        setSommerErrors({ ...sommerErrors, diameter: false });
+      }
+    } else if (type === 'vinter') {
+      setVinterDaekStoerrelse({ ...vinterDaekStoerrelse, diameter: value });
+      
+      // Validering når feltet er udfyldt (2 cifre)
+      if (value.length === 2) {
+        const isValid = validerDiameter(value);
+        setVinterErrors({ ...vinterErrors, diameter: !isValid });
+        
+        // Notificer om opdatering hvis valid
+        if (isValid && onChange) {
+          onChange({
+            valgteTyper,
+            kategoriSommer,
+            kategoriVinter,
+            kategoriHelaar,
+            sommerDaekStoerrelse,
+            vinterDaekStoerrelse: { ...vinterDaekStoerrelse, diameter: value },
+            helaarDaekStoerrelse
+          });
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 2 cifre
+        setVinterErrors({ ...vinterErrors, diameter: false });
+      }
+    } else {
+      setHelaarDaekStoerrelse({ ...helaarDaekStoerrelse, diameter: value });
+      
+      // Validering når feltet er udfyldt (2 cifre)
+      if (value.length === 2) {
+        const isValid = validerDiameter(value);
+        setHelaarErrors({ ...helaarErrors, diameter: !isValid });
+        
+        // Notificer om opdatering hvis valid
+        if (isValid && onChange) {
+          onChange({
+            valgteTyper,
+            kategoriSommer,
+            kategoriVinter,
+            kategoriHelaar,
+            sommerDaekStoerrelse,
+            vinterDaekStoerrelse,
+            helaarDaekStoerrelse: { ...helaarDaekStoerrelse, diameter: value }
+          });
+        }
+      } else {
+        // Nulstil fejl hvis værdien slettes eller er under 2 cifre
+        setHelaarErrors({ ...helaarErrors, diameter: false });
+      }
+    }
+  };
+  
+  // Render info om brands når musen holdes over
+  const renderBrandInfo = (kategoriType: 'budget' | 'economy' | 'premium') => {
+    return (
+      <div 
+        className="ml-1 relative" 
+        onMouseEnter={() => setShowBrands(kategoriType)}
+        onMouseLeave={() => setShowBrands(null)}
+      >
+        <FaInfoCircle className="text-gray-500 cursor-pointer hover:text-gray-700" />
+        
+        {showBrands === kategoriType && (
+          <div className="absolute z-10 bottom-0 left-6 w-48 bg-white border border-gray-200 rounded-md shadow-lg p-2">
+            <p className="text-xs font-medium mb-1 text-gray-700">Brands i denne kategori:</p>
+            <ul className="text-xs text-gray-600">
+              {daekBrands[kategoriType].map((brand, idx) => (
+                <li key={idx}>{brand}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  // Render dæk kategori sektion for en sæson
+  const renderDaekKategoriSektion = (type: 'sommer' | 'vinter' | 'helaar') => {
+    const kategori = 
+      type === 'sommer' ? kategoriSommer :
+      type === 'vinter' ? kategoriVinter :
+      kategoriHelaar;
+    
+    const setKategori = 
+      type === 'sommer' ? setKategoriSommer :
+      type === 'vinter' ? setKategoriVinter :
+      setKategoriHelaar;
+      
+    const bgColors = {
+      sommer: {
+        budget: 'bg-yellow-50 hover:bg-yellow-100',
+        economy: 'bg-yellow-100 hover:bg-yellow-200',
+        premium: 'bg-yellow-200 hover:bg-yellow-300'
+      },
+      vinter: {
+        budget: 'bg-blue-50 hover:bg-blue-100',
+        economy: 'bg-blue-100 hover:bg-blue-200',
+        premium: 'bg-blue-200 hover:bg-blue-300'
+      },
+      helaar: {
+        budget: 'bg-green-50 hover:bg-green-100',
+        economy: 'bg-green-100 hover:bg-green-200',
+        premium: 'bg-green-200 hover:bg-green-300'
+      }
+    };
+    
+    const textColors = {
+      sommer: {
+        budget: 'text-yellow-600',
+        economy: 'text-yellow-700',
+        premium: 'text-yellow-800'
+      },
+      vinter: {
+        budget: 'text-blue-600',
+        economy: 'text-blue-700',
+        premium: 'text-blue-800'
+      },
+      helaar: {
+        budget: 'text-green-600',
+        economy: 'text-green-700',
+        premium: 'text-green-800'
+      }
+    };
+    
+    return (
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-1">
+          <div className="text-sm font-medium text-gray-700">Vælg dækkvalitet:</div>
+          <div 
+            className="text-sm text-gray-500 flex items-center cursor-pointer hover:text-gray-700" 
+            onClick={() => setShowBrands(`${type}-${kategori}`)}
+          >
+            <FaInfoCircle className="mr-1" /> Se mærker
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            className={`py-1.5 rounded-md flex-1 text-center text-sm font-medium border ${bgColors[type].budget} ${kategori === 'budget' ? 'ring-2 ring-orange-500' : ''} ${textColors[type].budget}`}
+            onClick={() => {
+              setKategori('budget');
+              onChange?.({ ...valgteTyper, [`kategori${type.charAt(0).toUpperCase() + type.slice(1)}`]: 'budget' });
+            }}
+          >
+            Budget
+          </button>
+          <button
+            className={`py-1.5 rounded-md flex-1 text-center text-sm font-medium border ${bgColors[type].economy} ${kategori === 'economy' ? 'ring-2 ring-orange-500' : ''} ${textColors[type].economy}`}
+            onClick={() => {
+              setKategori('economy');
+              onChange?.({ ...valgteTyper, [`kategori${type.charAt(0).toUpperCase() + type.slice(1)}`]: 'economy' });
+            }}
+          >
+            Economy
+          </button>
+          <button
+            className={`py-1.5 rounded-md flex-1 text-center text-sm font-medium border ${bgColors[type].premium} ${kategori === 'premium' ? 'ring-2 ring-orange-500' : ''} ${textColors[type].premium}`}
+            onClick={() => {
+              setKategori('premium');
+              onChange?.({ ...valgteTyper, [`kategori${type.charAt(0).toUpperCase() + type.slice(1)}`]: 'premium' });
+            }}
+          >
+            Premium
+          </button>
+              </span>
+              {renderBrandInfo('premium')}
+            </label>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // Render dækstørrelse input for en sæson
+  const renderDaekStoerrelseInput = (type: 'sommer' | 'vinter' | 'helaar') => {
+    const daekStoerrelse = 
+      type === 'sommer' ? sommerDaekStoerrelse : 
+      type === 'vinter' ? vinterDaekStoerrelse : 
+      helaarDaekStoerrelse;
+    
+    const errors = 
+      type === 'sommer' ? sommerErrors : 
+      type === 'vinter' ? vinterErrors : 
+      helaarErrors;
+    
+    // Bestem om felter skal være disabled baseret på validering
+    const isProfileDisabled = !validerBredde(daekStoerrelse.bredde) || daekStoerrelse.bredde.length !== 3;
+    const isDiameterDisabled = isProfileDisabled || !validerProfil(daekStoerrelse.profil) || daekStoerrelse.profil.length !== 2;
+    
+    // Definer border farver baseret på sæson
+    const focusRingColor = 
+      type === 'sommer' ? 'focus:ring-yellow-500' : 
+      type === 'vinter' ? 'focus:ring-blue-500' : 
+      'focus:ring-green-500';
+    
+    // Farvetema baseret på sæson
+    const baseColor =
+      type === 'sommer' ? 'yellow' :
+      type === 'vinter' ? 'blue' :
+      'green';
+    
+    return (
+      <div className="mt-4">
+        <div className="text-sm font-medium text-gray-700 mb-2">Dækstørrelse:</div>
+        <div className="flex flex-wrap space-x-2 mb-2">
+          <div>
+            <label htmlFor={`${type}-bredde`} className="block text-xs text-gray-500 mb-1">Bredde</label>
+            <input
+              id={`${type}-bredde`}
+              type="text" 
+              className={`w-20 px-2 py-1 border rounded text-center focus:outline-none focus:ring-2 ${focusRingColor} ${
+                errors.bredde 
+                  ? `border-red-500 bg-red-50` 
+                  : `border-gray-300`
+              }`}
+              placeholder="135-395"
+              value={daekStoerrelse.bredde}
+              onChange={(e) => handleBreddeChange(e, type)}
+              maxLength={3}
+            />
+            {errors.bredde && (
+              <p className="text-xs text-red-500 mt-1">{errorMessages.bredde}</p>
+            )}
+          </div>
+          
+          <div>
+            <label htmlFor={`${type}-profil`} className="block text-xs text-gray-500 mb-1">Profil</label>
+            <input
+              id={`${type}-profil`}
+              type="text" 
+              className={`w-16 px-2 py-1 border rounded text-center focus:outline-none focus:ring-2 ${focusRingColor} ${
+                errors.profil 
+                  ? `border-red-500 bg-red-50` 
+                  : isProfileDisabled 
+                    ? `border-gray-200 bg-gray-100`
+                    : `border-gray-300`
+              } ${isProfileDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              placeholder="20-95"
+              value={daekStoerrelse.profil}
+              onChange={(e) => handleProfilChange(e, type)}
+              maxLength={2}
+              disabled={isProfileDisabled}
+            />
+            {errors.profil && (
+              <p className="text-xs text-red-500 mt-1">{errorMessages.profil}</p>
+            )}
+          </div>
+          
+          <div>
+            <label htmlFor={`${type}-diameter`} className="block text-xs text-gray-500 mb-1">Diameter</label>
+            <input
+              id={`${type}-diameter`}
+              type="text" 
+              className={`w-16 px-2 py-1 border rounded text-center focus:outline-none focus:ring-2 ${focusRingColor} ${
+                errors.diameter 
+                  ? `border-red-500 bg-red-50` 
+                  : isDiameterDisabled 
+                    ? `border-gray-200 bg-gray-100`
+                    : `border-gray-300`
+              } ${isDiameterDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              placeholder="15-23"
+              value={daekStoerrelse.diameter}
+              onChange={(e) => handleDiameterChange(e, type)}
+              maxLength={2}
+              disabled={isDiameterDisabled}
+            />
+            {errors.diameter && (
+              <p className="text-xs text-red-500 mt-1">{errorMessages.diameter}</p>
+            )}
+          </div>
+        </div>
+        
+        <div className="text-xs text-gray-400 mt-1 flex items-center">
+          <FaInfoCircle className="mr-1" size={12} />
+          Format: Bredde (135-395), Profil (20-95), Diameter (15-23)
+        </div>
+      </div>
+    );
+  };
+  
+  // Render en komplet dæksæson sektion
+  const renderDaekSaesonSektion = (type: 'sommer' | 'vinter' | 'helaar') => {
+    const titleIcon = 
+      type === 'sommer' ? <FaSun className="mr-2" /> : 
+      type === 'vinter' ? <FaSnowflake className="mr-2" /> : 
+      <FaCalendarDay className="mr-2" />;
+    
+    const titleText = 
+      type === 'sommer' ? 'Sommerdæk' : 
+      type === 'vinter' ? 'Vinterdæk' : 
+      'Helårsdæk';
+    
+    const titleBgColor = 
+      type === 'sommer' ? 'bg-yellow-100 border-yellow-200' : 
+      type === 'vinter' ? 'bg-blue-100 border-blue-200' : 
+      'bg-green-100 border-green-200';
+    
+    const titleTextColor = 
+      type === 'sommer' ? 'text-yellow-800' : 
+      type === 'vinter' ? 'text-blue-800' : 
+      'text-green-800';
+      
+    return (
+      <div className={`mt-4 p-4 rounded-lg border ${titleBgColor}`}>
+        <h4 className={`flex items-center text-lg font-medium ${titleTextColor} mb-3`}>
+          {titleIcon} {titleText}
+        </h4>
+        {renderDaekKategoriSektion(type)}
+        {renderDaekStoerrelseInput(type)}
+      </div>
+    );
+  };
+
+  // Render dækbrands info popup
+  const renderDaekBrandsPopup = () => {
+    if (!showBrands) return null;
+    
+    // Parse showBrands to get type and category
+    const [type, kategori] = showBrands.split('-') as ['sommer' | 'vinter' | 'helaar', 'budget' | 'economy' | 'premium'];
+    
+    const bgColor = 
+      type === 'sommer' ? 'bg-yellow-50 border-yellow-200' : 
+      type === 'vinter' ? 'bg-blue-50 border-blue-200' : 
+      'bg-green-50 border-green-200';
+    
+    const headerBgColor = 
+      type === 'sommer' ? 'bg-yellow-100' : 
+      type === 'vinter' ? 'bg-blue-100' : 
+      'bg-green-100';
+    
+    const textColor = 
+      type === 'sommer' ? 'text-yellow-800' : 
+      type === 'vinter' ? 'text-blue-800' : 
+      'text-green-800';
+    
+    const headerIcon = 
+      type === 'sommer' ? <FaSun className="mr-2" /> : 
+      type === 'vinter' ? <FaSnowflake className="mr-2" /> : 
+      <FaCalendarDay className="mr-2" />;
+      
+    const typeTitle = 
+      type === 'sommer' ? 'Sommerdæk' : 
+      type === 'vinter' ? 'Vinterdæk' : 
+      'Helårsdæk';
+      
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50" onClick={() => setShowBrands(null)}>
+        <div className={`w-full max-w-md rounded-lg shadow-lg ${bgColor} border p-0 m-4`} onClick={(e) => e.stopPropagation()}>
+          <div className={`${headerBgColor} ${textColor} px-4 py-3 rounded-t-lg flex items-center justify-between`}>
+            <h3 className="text-lg font-medium flex items-center">
+              {headerIcon} {typeTitle} - {daekBrands[kategori].title}
+            </h3>
+            <button 
+              onClick={() => setShowBrands(null)}
+              className="text-gray-500 hover:text-gray-700 focus:outline-none"
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div className="p-4">
+            <p className="text-gray-600 mb-3">{daekBrands[kategori].description}</p>
+            
+            <div className="font-medium mb-2">Inkluderede mærker:</div>
+            <div className="grid grid-cols-2 gap-2">
+              {daekBrands[kategori].brands.map((brand, index) => (
+                <div key={index} className="bg-white p-2 rounded border text-center">
+                  {brand}
+                </div>
+              ))}
+            </div>
+            
+            <div className="mt-4 text-xs text-gray-500">
+              Bemærk: Det præcise dækbrand kan variere afhængigt af tilgængelighed og sæson.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="mt-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">Dækaftale</h3>
+      
+      {/* Dæk type vælger */}
+      <div className="mb-4">
+        <div className="text-sm font-medium text-gray-700 mb-2">Vælg dæksæson(er):</div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className={`px-4 py-2 rounded-lg font-medium flex items-center ${
+              valgteTyper.sommer
+                ? 'bg-yellow-100 text-yellow-800 border border-yellow-400' 
+                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+            }`}
+            onClick={() => {
+              handleDaekTypeValg('sommer');
+              onChange?.({ ...valgteTyper, sommer: !valgteTyper.sommer });
+            }}
+            title='Vælg sommerdæk'
+          >
+            <FaSun className="mr-2" />
+            Sommerdæk
+            {valgteTyper.sommer && <FaCheck className="ml-2" />}
+          </button>
+          
+          <button
+            className={`px-4 py-2 rounded-lg font-medium flex items-center ${
+              valgteTyper.vinter
+                ? 'bg-blue-100 text-blue-800 border border-blue-400' 
+                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+            }`}
+            onClick={() => {
+              handleDaekTypeValg('vinter');
+              onChange?.({ ...valgteTyper, vinter: !valgteTyper.vinter });
+            }}
+            title='Vælg vinterdæk'
+          >
+            <FaSnowflake className="mr-2" />
+            Vinterdæk
+            {valgteTyper.vinter && <FaCheck className="ml-2" />}
+          </button>
+          
+          <button
+            className={`px-4 py-2 rounded-lg font-medium flex items-center ${
+              valgteTyper.helaar
+                ? 'bg-green-100 text-green-800 border border-green-400' 
+                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+            }`}
+            onClick={() => {
+              handleDaekTypeValg('helaar');
+              onChange?.({ ...valgteTyper, helaar: !valgteTyper.helaar });
+            }}
+            title='Vælg helårsdæk'
+          >
+            <FaCalendarDay className="mr-2" />
+            Helårsdæk
+            {valgteTyper.helaar && <FaCheck className="ml-2" />}
+          </button>
+        </div>
+        
+        <div className="text-xs text-gray-500 mt-1">
+          {valgteTyper.helaar ? 
+            'Helårsdæk er valgt. Vælg sommer- eller vinterdæk hvis du vil deaktivere helårsdæk.' : 
+            'Du kan vælge både sommer- og vinterdæk samtidigt, eller vælge helårsdæk.'}
+        </div>
+      </div>
+      
+      {/* Viser valgte dæktyper under hinanden */}
+      {valgteTyper.sommer && renderDaekSaesonSektion('sommer')}
+      {valgteTyper.vinter && renderDaekSaesonSektion('vinter')}
+      {valgteTyper.helaar && renderDaekSaesonSektion('helaar')}
+      
+      {/* Render popup when showBrands is true */}
+      {renderDaekBrandsPopup()}
+    </div>
+  );
+};
+
+export default DaekAftale;

@@ -1,0 +1,19 @@
+package_id,description,price,car_age_months_from,car_age_months_to,mileage_km_from,mileage_km_to,engine_size_ccm_from,engine_size_ccm_to,vehicle_category,fuel_type
+1,Standard garanti for nyere biler,5000,0,36,0,60000,0,3000,personbil,benzin
+1,Standard garanti for nyere biler,5500,0,36,0,60000,0,3000,personbil,diesel
+1,Standard garanti for nyere biler,6500,0,36,0,60000,3001,5000,personbil,benzin
+1,Standard garanti for nyere biler,7000,0,36,0,60000,3001,5000,personbil,diesel
+1,Standard garanti for ældre biler,7500,37,84,0,100000,0,3000,personbil,benzin
+1,Standard garanti for ældre biler,8000,37,84,0,100000,0,3000,personbil,diesel
+1,Standard garanti for ældre biler,9000,37,84,0,100000,3001,5000,personbil,benzin
+1,Standard garanti for ældre biler,10000,37,84,0,100000,3001,5000,personbil,diesel
+2,Udvidet garanti for nyere biler,8000,0,36,0,60000,0,3000,personbil,benzin
+2,Udvidet garanti for nyere biler,8500,0,36,0,60000,0,3000,personbil,diesel
+2,Udvidet garanti for nyere biler,9500,0,36,0,60000,3001,5000,personbil,benzin
+2,Udvidet garanti for nyere biler,10000,0,36,0,60000,3001,5000,personbil,diesel
+2,Udvidet garanti for ældre biler,12000,37,84,0,100000,0,3000,personbil,benzin
+2,Udvidet garanti for ældre biler,13000,37,84,0,100000,0,3000,personbil,diesel
+2,Udvidet garanti for ældre biler,14000,37,84,0,100000,3001,5000,personbil,benzin
+2,Udvidet garanti for ældre biler,15000,37,84,0,100000,3001,5000,personbil,diesel
+3,Premium garanti for nyere varevogne,9000,0,36,0,100000,0,3000,varebil,diesel
+3,Premium garanti for ældre varevogne,14000,37,84,0,150000,0,3000,varebil,diesel
