@@ -32,6 +32,18 @@ Dette dokument indeholder den prioriterede liste af opgaver for udviklingen af S
     - ✅ Opdater `Bildata.tsx` til at hente og gemme disse værdier fra API-kald (hvis de returneres) og vise dem (evt. skjult hvis de kun bruges internt).
     - ✅ Sørg for, at disse værdier sendes videre til `AftaleoverblikPage` via `location.state.bildataFormData`.
 
+#### Bildata API Integration
+- 🔄 **Integrer Carrus API til køretøjsopslag:**
+    - 🔄 Opret en dedikeret service fil (f.eks. `VehicleDataService.ts`) til at håndtere API-kald til Carrus.
+    - 🔘 Implementer funktioner til at hente køretøjsdata via nummerplade: `https://bilstatistik.api.carruslink.dk/vehicle/{LICENSE_PLATE}`
+    - 🔘 Implementer funktioner til at hente køretøjsdata via stelnummer: `https://bilstatistik.api.carruslink.dk/vehicle/{VIN}`
+    - 🔘 Implementer fejlhåndtering for API-kald, herunder ugyldige nummerplader/stelnumre og netværksfejl.
+    - 🔘 Udvid `BilData` interface med yderligere felter fra Carrus API (f.eks. brændstoftype, CO2-udledning, inspektionshistorik).
+    - 🔘 Opret data mapping-funktioner til at konvertere API-respons til applikationens datamodeller.
+    - 🔘 Opdater `handleSearch` funktionen i `Bildata.tsx` til at bruge den nye API-service i stedet for mock data.
+    - 🔘 Implementer caching af API-resultater for at undgå unødvendige gentagne opslag.
+    - 🔘 Overvej at tilføje en proxy-service til at skjule API-nøglen fra klient-siden.
+
 ### 3. Aftaleoverblik-siden
 - ✅ Vis indsamlede data om køretøjet fra Bildata-siden.
 - ✅ Implementer valg af "Aftaletype" (fx Service / Service & Reparation).
@@ -237,3 +249,4 @@ Dette dokument indeholder den prioriterede liste af opgaver for udviklingen af S
         - 🔘 Design en "Kom godt i gang"-guide for førstegangsbrug
         - 🔘 Implementer interaktive tours der guider brugeren gennem vigtige funktioner
         - 🔘 Skab videovejledninger for centrale processer med mulighed for at integrere dem direkte i admin-grænsefladen
+   

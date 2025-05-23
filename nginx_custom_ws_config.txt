@@ -1,0 +1,46 @@
+# Custom Nginx Configuration for WebSocket Proxying (e.g., for React HMR)
+# Paste this into the "Advanced" tab's "Custom Nginx Configuration" text area
+# for your proxy host in Nginx Proxy Manager.
+
+# IMPORTANT: Replace 'YOUR_APP_CONTAINER_IP_OR_NAME' with the
+# actual hostname or IP of your React app's Docker container
+# (e.g., 'service-aftale-beregner' if that's the Docker service name).
+
+location /ws {
+    # Forward requests to the internal React development server
+    # Ensure this matches the internal address and port of your React app container
+    proxy_pass http://YOUR_APP_CONTAINER_IP_OR_NAME:3000;
+
+    # Required for WebSocket proxying
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+
+    # Forward the original host header
+    proxy_set_header Host $host;
+
+    # Bypass caching for WebSocket upgrade requests
+    proxy_cache_bypass $http_upgrade;
+
+    # Forward client IP and protocol (good practice for proxies)
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# Note on manifest.json 401 error:
+# If the 401 error for /manifest.json persists, it's a separate issue.
+# You might need to ensure no overly broad authentication is applied by Nginx
+# or add a specific location block for it, e.g.:
+#
+# location = /manifest.json {
+#     # Add rules here if needed, e.g., to allow access or turn off auth
+#     # For example, if you have a global auth_basic, you might add:
+#     # auth_basic off;
+#     # allow all;
+#     #
+#     # Or, if it's just about ensuring it's served correctly from your app's public folder:
+#     # proxy_pass http://YOUR_APP_CONTAINER_IP_OR_NAME:3000; # (if served by the app)
+#     # Or ensure Nginx serves it directly if it's a static file mapped from host.
+# }
+#
+# However, focus on the WebSocket (/ws) location block first for the HMR issue.

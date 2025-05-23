@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AftaleType from '../components/AftaleType';
 import AftaleDetaljer from '../components/AftaleDetaljer';
@@ -250,7 +250,7 @@ const AftaleoverblikPage: React.FC = () => {
     }));
   };
 
-  const handleVejhjaelpChange = (data: any) => {
+  const handleVejhjaelpChange = useCallback((data: any) => {
     console.log('Vejhjælp data ændret:', data);
     setAftaleData(prev => ({ 
       ...prev, 
@@ -261,7 +261,7 @@ const AftaleoverblikPage: React.FC = () => {
         pris: data.pris || 0
       }
     }));
-  };
+  }, []);
   
   // Handler for at toggle vejhjælp direkte via checkbox
   const handleToggleVejhjaelp = (vilHaveVejhjaelp: boolean) => {
