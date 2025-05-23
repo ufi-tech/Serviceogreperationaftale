@@ -1,4 +1,4 @@
-# Service-Aftale Beregner - Opgaveliste
+# Service-Aftale Beregner - Opgaveliste -
 
 Dette dokument indeholder den prioriterede liste af opgaver for udviklingen af Service-Aftale Beregneren.
 
