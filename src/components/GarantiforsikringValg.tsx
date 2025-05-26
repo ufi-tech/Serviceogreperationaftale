@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { FaShieldAlt, FaCheck, FaInfoCircle, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
+import { FaInfoCircle, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
 import warrantyService, { 
   WarrantyProvider, 
   WarrantyPackage, 
   WarrantyPriceResponse,
-  WarrantyPricingRule,
-  WarrantyPriceRequest
+  WarrantyPricingRule
 } from '../services/WarrantyService';
 
 interface GarantiforsikringValgProps {
-  initialSelected: boolean;
+  // Understøt både gamle og nye prop navne for baglæns kompatibilitet
+  initialSelected?: boolean;
+  valgt?: boolean;
   initialCoverage?: string;
+  udbyder?: string;
+  pakke?: string;
+  pris?: number;
+  forhandlerBetaler50Procent?: boolean;
+  forhandlerDækningProcent?: 0 | 50 | 100;
   bilAlder: number;
   bilKm: number;
   motorStoerrelseCcm?: number; // Motorstørrelse i CCM for konventionelle biler
@@ -30,7 +36,13 @@ interface GarantiforsikringValgProps {
 
 const GarantiforsikringValg: React.FC<GarantiforsikringValgProps> = ({ 
   initialSelected, 
-  initialCoverage, 
+  valgt,
+  initialCoverage,
+  udbyder: propUdbyder,
+  pakke: propPakke,
+  pris: propPris,
+  forhandlerBetaler50Procent: propForhandlerBetaler50Procent,
+  forhandlerDækningProcent,
   bilAlder,
   bilKm,
   motorStoerrelseCcm,
@@ -52,10 +64,13 @@ const GarantiforsikringValg: React.FC<GarantiforsikringValgProps> = ({
   const [priceWarning, setPriceWarning] = useState<string | null>(null);
   const [featuresVisible, setFeaturesVisible] = useState<boolean>(false);
 
-  // Nulstil intern state, når komponenten monteres eller initialSelected ændres
+  // Brug valgt prop hvis tilgængelig, ellers initialSelected for baglæns kompatibilitet
+  const isSelected = valgt !== undefined ? valgt : initialSelected;
+
+  // Nulstil intern state, når komponenten monteres eller isSelected ændres
   useEffect(() => {
     // Nulstil alle interne states, hvis garantiforsikring ikke er valgt
-    if (!initialSelected) {
+    if (!isSelected) {
       setSelectedProvider('');
       setSelectedPackage('');
       setPriceResponse(null);
@@ -65,7 +80,7 @@ const GarantiforsikringValg: React.FC<GarantiforsikringValgProps> = ({
       setFeaturesVisible(false);
       setPricingRules([]);
     }
-  }, [initialSelected]);
+  }, [isSelected]);
 
   // Hent garantiudbydere når komponenten mountes eller aktiveres
   useEffect(() => {
@@ -103,10 +118,10 @@ const GarantiforsikringValg: React.FC<GarantiforsikringValgProps> = ({
     };
 
     // Kun hent udbydere, hvis garantiforsikring er aktiveret
-    if (initialSelected) {
+    if (isSelected) {
       fetchProviders();
     }
-  }, [initialSelected, initialCoverage, selectedProvider]);
+  }, [isSelected, initialCoverage, selectedProvider]);
 
   // Hent garantipakker når en udbyder vælges
   useEffect(() => {

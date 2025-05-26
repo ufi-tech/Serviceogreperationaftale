@@ -19,6 +19,20 @@ interface Vehicle {
   vehicleDetails: VehicleDetails;
   inspections: Inspection[];
   vehicleTypeApproval?: any; // Type approval data, kan indeholde vigtige køretøjsoplysninger
+  // Tilføjet manglende properties, der bruges i Bildata.tsx
+  basicInformation?: {
+    model?: string;
+    make?: string;
+    variant?: string;
+    [key: string]: any;
+  };
+  firstRegistrationDate?: string;
+  registrations?: Array<{
+    registrationDate?: string;
+    [key: string]: any;
+  }>;
+  // Tilføj alle andre properties der kan være i vehicle objektet
+  [key: string]: any;
 }
 
 interface Transaction {
@@ -88,6 +102,9 @@ interface VehicleDetails {
   hasParticulateFilter?: boolean;
   optionalEquipment?: string[];
   standardEquipment?: string[];
+  // Tilføjet manglende properties, der bruges i Bildata.tsx
+  dateOfFirstRegistration?: string;
+  initialRegistrationDate?: string;
 }
 
 interface Inspection {

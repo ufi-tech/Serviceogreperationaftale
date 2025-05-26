@@ -1,0 +1,357 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { AftaleData, GarantiforsikringData, BildataFormData } from '../types/aftaleTypes';
+import GarantiforsikringSektion from './GarantiforsikringSektion';
+
+// Definer typerne fra GarantiforsikringSektion
+type BilType = 'personbil' | 'varebil' | 'suv' | 'andet';
+type BraendstofType = 'benzin' | 'diesel' | 'el' | 'plugin' | 'andet';
+
+// Initialtilstand for aftaledata
+const initialAftaleData: AftaleData = {
+  aftaleType: 'service',
+  løbetid: 36,
+  kilometerPerÅr: 15000,
+  totalKilometer: 45000,
+  vejhjaelp: {
+    valgt: false,
+    type: '',
+    pris: 0,
+    udbyder: '',
+    pakke: ''
+  },
+  daekAftale: {
+    valgt: false,
+    valgteTyper: {
+      sommer: false,
+      vinter: false,
+      helaar: false,
+    },
+    kategoriSommer: 'economy',
+    kategoriVinter: 'economy',
+    kategoriHelaar: 'economy',
+    pris: 0
+  },
+  garantiforsikring: {
+    valgt: false,
+    udbyder: '',
+    pakke: '',
+    pris: 0,
+    forhandlerDækningProcent: 0 // 0% som standard (ingen dækning)
+  },
+  laanebil: {
+    valgt: false
+  }
+};
+
+// Utility-funktion til at beregne bilens alder
+const beregnBilAlder = (registreringsdato: string): number => {
+  if (!registreringsdato) return 0;
+  
+  const dateParts = registreringsdato.split('-');
+  if (dateParts.length !== 3) return 0;
+  
+  const registreringsÅr = parseInt(dateParts[0], 10);
+  const registreringsMåned = parseInt(dateParts[1], 10);
+  const registreringsDag = parseInt(dateParts[2], 10);
+  
+  const iDag = new Date();
+  const årNu = iDag.getFullYear();
+  const månedNu = iDag.getMonth() + 1; // Januar er 0
+  const dagNu = iDag.getDate();
+  
+  let alder = årNu - registreringsÅr;
+  
+  // Hvis vi ikke har nået fødselsdagen i år endnu, træk et år fra
+  if (månedNu < registreringsMåned || (månedNu === registreringsMåned && dagNu < registreringsDag)) {
+    alder--;
+  }
+  
+  return alder;
+};
+
+const Aftaleoverblik: React.FC = () => {
+  // State management
+  const [bildataFormData, setBildataFormData] = useState<BildataFormData | null>(null);
+  const [aftaleData, setAftaleData] = useState<AftaleData>(initialAftaleData);
+  
+  // Beregnede værdier for bilen
+  const [bilAlder, setBilAlder] = useState<number>(0);
+  const [bilKm, setBilKm] = useState<number>(0);
+  
+  // Simuler at vi henter bildata ved komponentload
+  useEffect(() => {
+    // Dette ville normalt komme fra en API eller router state
+    const dummyBildata: BildataFormData = {
+      bilmaerke: 'Volkswagen',
+      model: 'Golf',
+      nummerplade: 'AB12345',
+      stelnummer: 'VWZ12345678901234',
+      betegnelse: '1.6 TSI',
+      foersteRegistreringsdato: '2019-06-15',
+      kilometer: '45.000',
+      kmAarligt: '15.000',
+      hk: '110',
+      bilType: 'personbil',
+      fabriksgarantiMdr: '24'
+    };
+    
+    setBildataFormData(dummyBildata);
+  }, []);
+  
+  // Opdater bil alder når registreringsdato ændres
+  useEffect(() => {
+    if (bildataFormData?.foersteRegistreringsdato) {
+      setBilAlder(beregnBilAlder(bildataFormData.foersteRegistreringsdato));
+    }
+  }, [bildataFormData?.foersteRegistreringsdato]);
+  
+  // Opdater bilens km når kilometer ændres
+  useEffect(() => {
+    if (bildataFormData?.kilometer) {
+      setBilKm(parseInt(bildataFormData.kilometer.replace(/\./g, ''), 10) || 0);
+    } else {
+      // Sæt en standardværdi, hvis kilometer ikke er tilgængeligt
+      setBilKm(0);
+    }
+  }, [bildataFormData?.kilometer]);
+
+  // Handler for garantiforsikring toggle
+  const handleToggleGarantiforsikring = useCallback((valgt: boolean) => {
+    console.log('handleToggleGarantiforsikring kaldt med:', valgt);
+    
+    // Sikrer korrekt toggle-opførsel ved at bruge direkte værdi i stedet for aftaleData.garantiforsikring.valgt
+    setAftaleData(prev => {
+      // Definér den opdaterede garantiforsikring-tilstand baseret på ny toggle-værdi
+      const updatedGarantiforsikring = valgt 
+        ? {
+            // Hvis aktiveret, behold eksisterende værdier eller brug tomme standardværdier
+            valgt: true,
+            udbyder: prev.garantiforsikring.udbyder || '',
+            pakke: prev.garantiforsikring.pakke || '',
+            pris: prev.garantiforsikring.pris || 0,
+            forhandlerDækningProcent: prev.garantiforsikring.forhandlerDækningProcent || 0 as 0 | 50 | 100
+          }
+        : {
+            // Hvis deaktiveret, nulstil alle værdier
+            valgt: false,
+            udbyder: '',
+            pakke: '',
+            pris: 0,
+            forhandlerDækningProcent: 0 as 0 | 50 | 100 // Ingen dækning
+          };
+      
+      console.log('Opdateret garantiforsikring state:', updatedGarantiforsikring);
+      
+      // Returner det opdaterede state objekt
+      return {
+        ...prev,
+        garantiforsikring: updatedGarantiforsikring
+      };
+    });
+  }, []);
+
+  // Handler for garantiforsikring changes
+  const handleGarantiforsikringChange = useCallback((data: {
+    valgt: boolean;
+    udbyder?: string;
+    pakke?: string;
+    pris?: number;
+    forhandlerDækningProcent?: 0 | 50 | 100;
+  }) => {
+    // Explicit handling of toggle action (activation/deactivation)
+    if (data.valgt === false) {
+      console.log('Deaktiverer garantiforsikring');
+      setAftaleData(prevData => {
+        const updatedState = {
+          ...prevData,
+          garantiforsikring: {
+            valgt: false,
+            udbyder: '',
+            pakke: '',
+            pris: 0,
+            forhandlerDækningProcent: 0 as 0 | 50 | 100 // Ingen dækning
+          }
+        };
+        console.log('Nyt state efter deaktivering:', updatedState.garantiforsikring);
+        return updatedState;
+      });
+    } else {
+      // Garantiforsikring is activated or changed
+      console.log('Aktiverer/opdaterer garantiforsikring');
+      setAftaleData(prevData => {
+        // If we change provider, reset package and price
+        let newPakke = prevData.garantiforsikring.pakke;
+        let newPris = prevData.garantiforsikring.pris;
+        
+        if (data.udbyder !== undefined && data.udbyder !== prevData.garantiforsikring.udbyder) {
+          console.log('Skifter udbyder - nulstiller pakke og pris');
+          newPakke = '';
+          newPris = 0;
+        }
+        
+        const updatedState = {
+          ...prevData,
+          garantiforsikring: {
+            ...prevData.garantiforsikring,
+            valgt: true,
+            udbyder: data.udbyder !== undefined ? data.udbyder : prevData.garantiforsikring.udbyder,
+            pakke: data.pakke !== undefined ? data.pakke : newPakke,
+            pris: data.pris !== undefined ? data.pris : newPris,
+            forhandlerDækningProcent: data.forhandlerDækningProcent !== undefined ? 
+            data.forhandlerDækningProcent : prevData.garantiforsikring.forhandlerDækningProcent
+          }
+        };
+        console.log('Nyt state efter aktivering/opdatering:', updatedState.garantiforsikring);
+        return updatedState;
+      });
+    }
+  }, []);
+  
+  return (
+    <div className="bg-white shadow rounded-lg p-6">
+      <h2 className="text-2xl font-semibold mb-6">Aftaleoverblik</h2>
+      <div className="space-y-6">
+        <div className="border-b pb-4">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Biloplysninger</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">Bilmærke</p>
+              <p className="mt-1">{bildataFormData?.bilmaerke || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Model</p>
+              <p className="mt-1">{bildataFormData?.model || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Første registreringsdato</p>
+              <p className="mt-1">{bildataFormData?.foersteRegistreringsdato || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Kørte km</p>
+              <p className="mt-1">{bildataFormData?.kilometer || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Alder i år</p>
+              <p className="mt-1">{bilAlder}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Biltype</p>
+              <p className="mt-1">{bildataFormData?.bilType || '-'}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-b pb-4">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Aftaledetaljer</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <span>Aftaletype:</span>
+              <span className="font-medium">{aftaleData.aftaleType === 'service' ? 'Serviceaftale' : 'Service- og reparationsaftale'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Km/år:</span>
+              <span className="font-medium">{aftaleData.kilometerPerÅr.toLocaleString('da-DK')} km</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Løbetid:</span>
+              <span className="font-medium">{aftaleData.løbetid} måneder</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total kilometer:</span>
+              <span className="font-medium">{aftaleData.totalKilometer.toLocaleString('da-DK')} km</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Garantiforsikring sektion */}
+        <div className="border-b pb-4 mb-4">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Tilvalgsprodukter</h3>
+          <GarantiforsikringSektion
+            valgt={aftaleData.garantiforsikring.valgt}
+            pris={aftaleData.garantiforsikring.pris || 0}
+            udbyder={aftaleData.garantiforsikring.udbyder}
+            pakke={aftaleData.garantiforsikring.pakke}
+            forhandlerDækningProcent={aftaleData.garantiforsikring.forhandlerDækningProcent}
+            onToggle={handleToggleGarantiforsikring}
+            onChange={handleGarantiforsikringChange}
+            bilAlder={bilAlder}
+            bilKm={Number(bilKm) || 0}
+            motorStoerrelseCcm={bildataFormData ? parseInt(bildataFormData.hk || '0', 10) : 0}
+            motorEffektHk={bildataFormData ? parseInt(bildataFormData.hk || '0', 10) : 0}
+            bilType={(bildataFormData?.bilType === 'personbil' ? 'personbil' : 'andet') as BilType}
+            braendstofType={'benzin' as BraendstofType}
+          />
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-md">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Prisoverslag</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between">
+              <span>Servicepris</span>
+              <span className="font-medium">1.295 kr./md.</span>
+            </div>
+            
+            {/* Garantiforsikring prissektion */}
+            {aftaleData.garantiforsikring.valgt && (
+              <div className="flex justify-between">
+                <span>
+                  Garantiforsikring {aftaleData.garantiforsikring.pakke && `(${aftaleData.garantiforsikring.pakke})`}
+                  {aftaleData.garantiforsikring.forhandlerDækningProcent > 0 && (
+                    <span className="text-green-600 text-sm ml-2">
+                      {aftaleData.garantiforsikring.forhandlerDækningProcent === 100 
+                        ? '(100% dækket af forhandler)' 
+                        : `(${aftaleData.garantiforsikring.forhandlerDækningProcent}% dækket af forhandler)`}
+                    </span>
+                  )}
+                </span>
+                <span className="font-medium">
+                  {aftaleData.garantiforsikring.forhandlerDækningProcent === 100 
+                    ? '0 kr./md.' 
+                    : aftaleData.garantiforsikring.forhandlerDækningProcent === 50 
+                      ? `${(aftaleData.garantiforsikring.pris || 0) / 2} kr./md.`
+                      : `${aftaleData.garantiforsikring.pris || 0} kr./md.`
+                  }
+                </span>
+              </div>
+            )}
+
+            {/* Total pris beregning */}
+            <div className="border-t pt-3 flex justify-between">
+              <span className="font-semibold">Total pr. md.</span>
+              <span className="font-semibold text-lg">
+                {(() => {
+                  // Beregn total pris baseret på valgte produkter
+                  let totalPris = 1295; // Grundpris for service
+                  
+                  // Tilføj garantiforsikring hvis valgt
+                  if (aftaleData.garantiforsikring.valgt) {
+                    if (aftaleData.garantiforsikring.forhandlerDækningProcent === 100) {
+                      // Gratis for kunden
+                    } else if (aftaleData.garantiforsikring.forhandlerDækningProcent === 50) {
+                      totalPris += (aftaleData.garantiforsikring.pris || 0) / 2;
+                    } else {
+                      totalPris += (aftaleData.garantiforsikring.pris || 0);
+                    }
+                  }
+                  
+                  return `${totalPris.toLocaleString('da-DK')} kr./md.`;
+                })()}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-between pt-4">
+          <button className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            Tilbage
+          </button>
+          <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            Fortsæt til kundedata
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Aftaleoverblik;
