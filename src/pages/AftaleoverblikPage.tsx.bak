@@ -1,400 +1,179 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation, useNavigate, Location } from 'react-router-dom';
-import { useMoms } from '../contexts/MomsContext';
-import { useLand } from '../contexts/LandContext';
-import { usePrisBeregner } from '../contexts/PrisBeregnerContext';
-import { useValidation } from '../contexts/ValidationContext';
-import { 
-  FaFileAlt,
-  FaExclamationTriangle, 
-  FaCheck, 
-  FaCogs, 
-  FaInfoCircle, 
-  FaRoad,
-  FaCarCrash,
-  FaCarAlt,
-  FaTools,
-  FaCarSide,
-  FaCarBattery,
-  FaTint,
-  FaOilCan,
-  FaShieldAlt,
-  FaArrowLeft,
-  FaArrowRight,
-  FaTruck,
-  FaSnowflake,
-  FaHandsHelping
-} from 'react-icons/fa';
-
-// Import components
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import AftaleType from '../components/AftaleType';
+import AftaleDetaljer from '../components/AftaleDetaljer';
 import VejhjaelpValg from '../components/VejhjaelpValg';
 import DaekAftale from '../components/DaekAftale';
 import GarantiforsikringValg from '../components/GarantiforsikringValg';
-import GarantiforsikringSektion from './GarantiforsikringSektion';
-
-// Import types
+import { useMoms } from '../contexts/MomsContext';
+import { useLand } from '../contexts/LandContext';
+import { usePrisBeregner } from '../contexts/PrisBeregnerContext';
+import { AftalePrisBeregningData, BeregnResultat } from '../services/PrisBeregner';
 import { 
-  BildataFormData,
-  VejhjaelpData,
-  DaekAftaleData,
-  BeregnedePriser,
-  ValideringsFejl,
-  BeregnResultat,
-  GarantiforsikringData,
-  AftaleData
-} from '../types/aftaleTypes';
-
-declare global {
-  interface Window {
-    dataLayer: any[];
-  }
-}
-
-// Local type definitions
-type CountryOption = {
-  code: string;
-  name: string;
-};
-
-// Extended types for form data
-interface ExtendedBildataFormData extends Omit<BildataFormData, 'bilType'> {
-  motorStorrelse?: string;
-  braendstofType?: string;
-  bilType?: string;
-}
-
-// Define BilType type
-type BilType = 'personbil' | 'vandvogn' | 'elbil' | 'hybrid' | 'anden';
-
-// Type guard for BilType - single declaration
-function isBilType(value: string): value is BilType {
-  return ['personbil', 'vandvogn', 'elbil', 'hybrid', 'anden'].includes(value);
-}
+  FaArrowLeft, 
+  FaArrowRight, 
+  FaExclamationTriangle, 
+  FaShieldAlt, 
+  FaInfoCircle, 
+  FaCar,
+  FaTruck, 
+  FaSnowflake, 
+  FaRoad, 
+  FaHandsHelping,
+  FaOilCan,
+  FaCogs,
+  FaCheck,
+  FaRing,
+  FaCircleNotch
+} from 'react-icons/fa';
+import { useValidation, StepId } from '../contexts/ValidationContext';
 
 // Dato-formateringsfunktion der konverterer ISO-datoer (YYYY-MM-DD) til dansk format (DD.MM.YYYY)
-// Funktionen håndterer både fulde ISO-strings og YYYY-MM-DD formaterede datoer
+// Gyldig input er ISO-format med bindestreg (eksempel: 2025-05-20)
 const formatDate = (dateStr: string): string => {
-  if (!dateStr) return '';
-  try {
-    const [year, month, day] = dateStr.split('T')[0].split('-');
-    return `${day}.${month}.${year}`;
-  } catch (error) {
-    console.error('Error formatting date:', error);
+  if (!dateStr) return 'Ikke angivet';
+  
+  // Forsøg at parse datoen (JavaScript accepterer YYYY-MM-DD som standard format)
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    // Dato kunne ikke parses, så vi returnerer den uændret
     return dateStr;
   }
-};
-
-// Format currency helper function
-const formatPris = (amount: number | undefined): string => {
-  if (amount === undefined) return '0,00';
-  return new Intl.NumberFormat('da-DK', {
-    style: 'decimal',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount);
-};
-
-// Constants for validation
-const maksAlderVedIndtegning = 20; // years
-const maksKmVedIndtegning = 300000; // km
-
-
-
-// Calculate car age helper function
-const beregnBilAlder = (foersteRegistreringsdato: string): number => {
-  if (!foersteRegistreringsdato) return 0;
-  try {
-    const regDate = new Date(foersteRegistreringsdato);
-    const now = new Date();
-    let age = now.getFullYear() - regDate.getFullYear();
-    const monthDiff = now.getMonth() - regDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < regDate.getDate())) {
-      age--;
-    }
-    return Math.max(0, age);
-  } catch (error) {
-    console.error('Error calculating car age:', error);
-    return 0;
-  }
-};
-
-// Extend Location type to include state
-type LocationWithState = Location & {
-  state?: {
-    bildataFormData?: Partial<BildataFormData>;
-    aftaleData?: Partial<AftaleData>;
-    directNavigation?: boolean;
-  };
-}
-
-// Extend Window interface to include dataLayer
-declare global {
-  interface Window {
-    dataLayer: any[];
-  }
-}
-
-// Type for AftalePrisBeregningData
-interface AftalePrisBeregningData {
-  bilAlder?: number;
-  bilKm?: number;
-  aftaleType?: string;
-  løbetid?: number;
-  kilometerPerÅr?: number;
-  vejhjaelp?: boolean;
-  daekAftale?: boolean;
-  garantiforsikring?: boolean;
-  laanebil?: boolean;
-  land?: string;
-  erPrivat?: boolean;
-}
-
-// Define the initial state outside the component to avoid recreation
-const initialAftaleData: AftaleData = {
-  aftaleType: 'service',
-  løbetid: 3,
-  kilometerPerÅr: 15000,
-  totalKilometer: 45000,
-  vejhjaelp: {
-    valgt: false,
-    type: '',
-    pris: 0,
-    udbyder: '',
-    pakke: ''
-  },
-  daekAftale: {
-    valgt: false,
-    valgteTyper: {
-      sommer: false,
-      vinter: false,
-      helaar: false,
-    },
-    kategoriSommer: 'economy',
-    kategoriVinter: 'economy',
-    kategoriHelaar: 'economy',
-    pris: 0,
-  },
-  garantiforsikring: {
-    valgt: false,
-    udbyder: '',
-    pakke: '',
-    pris: 0,
-    forhandlerBetaler50Procent: false,
-  },
-  laanebil: {
-    valgt: false
-  }
-};
-
-const initialBeregnedePriser: BeregnResultat = {
-  maanedligPris: 0,
-  aarligPris: 0,
-  totalPris: 0,
-  rabatter: {
-    fabriksGaranti: 0,
-    loebetid: 0,
-    total: 0
-  },
-  tillaeg: {
-    varebil: 0,
-    kmAar: 0,
-    total: 0
-  },
-  daekpris: 0,
-  vejhjaelpPris: 0,
-  garantiForsikringPris: 0,
-  subtotal: 0,
-  moms: 0
-};
-
-const initialValideringsFejl: ValideringsFejl = {
-  alder: undefined,
-  kilometer: undefined
+  
+  // Format dato med dansk format DD.MM.YYYY med punktum som separator
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${day}.${month}.${year}`;
 };
 
 const AftaleoverblikPage: React.FC = () => {
-  // Navigation and location
   const navigate = useNavigate();
-  const location = useLocation() as unknown as LocationWithState;
+  const location = useLocation();
+  const { erPrivat } = useMoms();
+  const { selectedCountry } = useLand();
+  const { beregnPris } = usePrisBeregner();
+  const { setStepValidated } = useValidation();
+
+  // Maksimal alder ved indtegning (i år)
+  const maksAlderVedIndtegning = 7; // 7 år
+  const maksKmVedIndtegning = 150000; // 150.000 km
+
+  // Check om der er data i location state eller om brugeren har navigeret direkte til URL'en
+  const directNavigation = !location.state?.bildataFormData;
   
-  // State management
-  const [bildataFormData, setBildataFormData] = useState<ExtendedBildataFormData | null>(null);
-  const [aftaleData, setAftaleData] = useState<AftaleData>(initialAftaleData);
-  const [selectedCountry, setSelectedCountry] = useState<CountryOption | null>(null);
-  const [erPrivat, setErPrivat] = useState<boolean>(true);
-  const [directNavigation, setDirectNavigation] = useState<boolean>(false);
-  const [bilAlder, setBilAlder] = useState<number>(0);
-  const [bilKm, setBilKm] = useState<number>(0);
-  const [andet, setAndet] = useState<string>('');
-  const [beregnedePriser, setBeregnedePriser] = useState<BeregnResultat>(initialBeregnedePriser);
-  const [valideringsFejl, setValideringsFejl] = useState<ValideringsFejl>(initialValideringsFejl);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Form data state
-  const [formData, setFormData] = useState<ExtendedBildataFormData>({
-    nummerplade: '',
-    stelnummer: '',
-    bilmaerke: '',
-    bilmodel: '',
-    aargang: '',
-    foersteRegistreringsdato: '',
+  // Bildata from location state (sent from Bildata.tsx) or placeholder for direct navigation
+  const bildataFormData = location.state?.bildataFormData || {
+    nummerplade: 'Ikke angivet',
+    stelnummer: 'Ikke angivet',
+    bilmaerke: 'Ikke angivet', // Placeholder, forventer string fra Bildata
+    model: 'Ikke angivet',     // Placeholder, forventer string fra Bildata
+    betegnelse: 'Ikke angivet',
+    hk: '100', // Default HK, hvis ikke angivet
+    foersteRegistreringsdato: new Date().toISOString().split('T')[0],
     kilometer: '0',
-    braendstoftype: '',
-    braendstofType: '',
-    gearkasse: '',
-    gearkasseType: '',
-    motorstoerrelse: 0,
-    hestekraefter: 0,
-    variant: '',
-    model: '',
-    braendstof: '',
-    gear: '',
-    ejerafgift: 0,
-    co2Udslip: 0,
-    vaegt: 0,
-    antalDore: 0,
-    antalHjul: 0,
-    laengde: 0,
-    bredde: 0,
-    hoejde: 0,
-    bagagerumsVolumen: 0,
-    tankStoerrelse: 0,
-    kmPrLiter: 0,
-    kmPrKwh: 0,
-    elKapacitet: 0,
-    elKapacitetBrugbar: 0,
-    elLadeHastighed: 0,
-    elLadeHastighedHurtig: 0,
-    elLadeHastighedHurtigkW: 0,
-    elLadeHastighedkW: 0,
-    elLadeTid: 0,
-    elLadeTidHurtig: 0,
-    elLadeTidHurtigMinutter: 0,
-    elLadeTidMinutter: 0,
-    elRekkevidde: 0,
-    elRekkeviddeWLTP: 0
+    kmAarligt: '15000', // Changed from forventedeAntalKmPrAar and aligned with Bildata.tsx FormData
+    koereklarVaegt: undefined, // Placeholder for køreklar vægt
+    bilType: undefined, // Placeholder for biltype
+    fabriksgarantiMdr: '', // Tilføjet så feltet altid findes
+    // Fields like warrantyInsuranceSelected, warrantyDealerCoverage etc. are removed as they no longer come from Bildata.tsx state
+  };
+
+  useEffect(() => {
+    setStepValidated('aftaleoverblik', true);
+  }, [setStepValidated]);
+
+  // Beregn bilens alder i år
+  const beregnBilAlder = (): number => {
+    if (!bildataFormData.foersteRegistreringsdato) return 0;
+
+    const regDato = new Date(bildataFormData.foersteRegistreringsdato);
+    const nuDato = new Date();
+
+    const diffTid = nuDato.getTime() - regDato.getTime();
+    const diffAar = diffTid / (1000 * 3600 * 24 * 365.25);
+
+    return Math.floor(diffAar);
+  };
+
+  const bilAlder = beregnBilAlder();
+  const bilKm = typeof bildataFormData.kilometer === 'string' 
+    ? parseInt(bildataFormData.kilometer.replace(/[,.\s]/g, ''), 10) 
+    : bildataFormData.kilometer || 0;
+
+  // Validering af indtegningskrav
+  const [valideringsFejl, setValideringsFejl] = useState<{alder: boolean; kilometer: boolean}>({
+    alder: false, 
+    kilometer: false 
   });
 
-  // Helper function to navigate to bil data page
-  const gaTilBildata = useCallback(() => {
-    navigate('/bil-data', {
-      state: {
-        fromAftaleoverblik: true,
-        aftaleData,
-        bildataFormData
-      }
-    });
-  }, [aftaleData, bildataFormData, navigate]);
-
-  // Handle aftale details change
-  const handleAftaleDetaljerChange = useCallback((field: keyof AftaleData, value: any) => {
-    setAftaleData((prev: AftaleData) => ({
-      ...prev,
-      [field]: value
-    }));
-  }, []);
-  
-  // Initialize form data if not already set
   useEffect(() => {
-    if (location.state?.bildataFormData) {
-      setBildataFormData(prev => ({
-        ...prev,
-        ...location.state.bildataFormData
-      }));
-    }
-    
-    if (location.state?.directNavigation) {
-      setDirectNavigation(true);
-    }
-  }, [location.state]);
-  
-  // Update bilAlder and bilKm when bildataFormData changes
-  useEffect(() => {
-    if (bildataFormData?.foersteRegistreringsdato) {
-      const alder = beregnBilAlder(bildataFormData.foersteRegistreringsdato);
-      setBilAlder(alder);
-    }
-    
-    if (bildataFormData?.kilometer) {
-      const km = parseInt(bildataFormData.kilometer.replace(/\./g, ''), 10) || 0;
-      setBilKm(km);
-    }
-  }, [bildataFormData]);
-
-  // State for agreement data
-  const [aftaleData, setAftaleData] = useState<AftaleData>(() => {
-    const location = useLocation() as LocationWithState;
-    return location.state?.aftaleData || {
-      aftaleType: 'service',
-      løbetid: 36,
-      kilometerPerÅr: 15000,
-      vejhjaelp: { inkluderet: false },
-      daekAftale: { inkluderet: false },
-      garantiforsikring: { inkluderet: false }
-    };
-  });
-
-  // Initialize state from location or use defaults
-  useEffect(() => {
-    if (location.state) {
-      const { aftaleData: locationAftaleData, bildataFormData: locationBildata, directNavigation: navDirect } = location.state;
-
-      if (locationAftaleData) {
-        setAftaleData(prev => ({
-          ...prev,
-          ...locationAftaleData,
-          vejhjaelp: {
-            ...prev.vejhjaelp,
-            ...(locationAftaleData.vejhjaelp || {})
-          },
-          daekAftale: {
-            ...prev.daekAftale,
-            ...(locationAftaleData.daekAftale || {})
-          },
-          garantiforsikring: {
-            ...prev.garantiforsikring,
-            ...(locationAftaleData.garantiforsikring || {})
-          }
-        }));
-      }
-
-      if (locationBildata) {
-        setBildataFormData(locationBildata);
-      }
-
-      if (navDirect) {
-        setDirectNavigation(true);
-      }
-    }
-  }, [location.state]);
-
-  // Calculate car age and validate
-  useEffect(() => {
-    if (bildataFormData?.foersteRegistreringsdato) {
-      setBilAlder(beregnBilAlder(bildataFormData.foersteRegistreringsdato));
-    }
-  }, [bildataFormData?.foersteRegistreringsdato]);
-
-  useEffect(() => {
-    if (bildataFormData?.kilometer) {
-      setBilKm(parseInt(bildataFormData.kilometer.replace(/\./g, ''), 10) || 0);
-    }
-  }, [bildataFormData?.kilometer]);
-
-  // Calculate total kilometers based on years and km per year - single implementation
-  const totalKilometer = useMemo(() => {
-    return aftaleData.kilometerPerÅr * (aftaleData.løbetid / 12);
-  }, [aftaleData.løbetid, aftaleData.kilometerPerÅr]);
-
-  // Validation effect - single source of truth
-  useEffect(() => {
-    setValideringsFejl(prev => ({
-      ...prev,
+    setValideringsFejl({
       alder: bilAlder > maksAlderVedIndtegning,
       kilometer: bilKm > maksKmVedIndtegning
+    });
+  }, [bilAlder, bilKm, maksAlderVedIndtegning, maksKmVedIndtegning]);
+
+  // Initial state for all agreement options managed on this page
+  const [aftaleData, setAftaleData] = useState({
+    aftaleType: 'service', // 'service' or 'service-og-reparation'
+    løbetid: 36, // months
+    kilometerPerÅr: parseInt(bildataFormData.kmAarligt, 10) || 15000, // Uses kmAarligt from bildata
+    totalKilometer: (parseInt(bildataFormData.kmAarligt, 10) || 15000) * (36/12),
+    vejhjaelpValgt: false, // true or false
+    vejhjaelp: {
+      udbyder: '',
+      pakke: '',
+      pris: 0
+    },
+    laanebilValgt: 'nej', // Added for loan car: 'ja' | 'nej'
+    daekaftale: {
+      valgt: false, // Sikrer at master toggle er false som standard
+      valgteTyper: { sommer: false, vinter: false, helaar: false }, // Specific tire types chosen
+      // Categories for each tire type, to be updated by DaekAftale component
+      kategoriSommer: 'economy' as 'economy' | 'premium' | 'budget',
+      kategoriVinter: 'economy' as 'economy' | 'premium' | 'budget',
+      kategoriHelaar: 'economy' as 'economy' | 'premium' | 'budget',
+      // Dimensions can be added if needed for summary or direct pricing, but usually managed by DaekAftale
+    },
+    garantiforsikring: {
+      valgt: false,
+      udbyder: '',
+      pakke: undefined as string | undefined, // Changed to string | undefined
+      pris: 0,
+      forhandlerBetaler50Procent: false, // True if dealer pays 50%
+    }
+  });
+
+  // Recalculate totalKilometer when løbetid or kilometerPerÅr changes
+  useEffect(() => {
+    setAftaleData(prev => ({
+      ...prev,
+      totalKilometer: prev.kilometerPerÅr * (prev.løbetid / 12)
     }));
-  }, [bilAlder, bilKm]);
+  }, [aftaleData.løbetid, aftaleData.kilometerPerÅr]);
+
+  const [beregnedePriser, setBeregnedePriser] = useState<BeregnResultat>({
+    grundpris: 0,
+    rabatter: {
+      fabriksGaranti: 0,
+      loebetid: 0,
+      total: 0
+    },
+    tillaeg: {
+      varebil: 0,
+      kmAar: 0,
+      total: 0
+    },
+    daekpris: 0,
+    vejhjaelpPris: 0,
+    garantiForsikringPris: 0,
+    subtotal: 0,
+    moms: 0,
+    totalPris: 0,
+    maanedligPris: 0
+  });
 
   // Beregn priser baseret på aftaledata med prisberegneren
   useEffect(() => {
@@ -412,7 +191,7 @@ const AftaleoverblikPage: React.FC = () => {
       // Konverterer aftalevalg til prisberegnerformat
       kmPerAar: aftaleData.kilometerPerÅr.toString() as AftalePrisBeregningData['kmPerAar'],
       loebetidMaaneder: aftaleData.løbetid.toString() as AftalePrisBeregningData['loebetidMaaneder'],
-      inkluderVejhjaelp: aftaleData.vejhjaelp.valgt,
+      inkluderVejhjaelp: aftaleData.vejhjaelpValgt,
       aftaletype: aftaleData.aftaleType === 'service' ? 'service' : 'service_reparation',
 
       // Garantiforsikring (kun for serviceaftale)
@@ -424,6 +203,17 @@ const AftaleoverblikPage: React.FC = () => {
       } : undefined,
 
       // Dækdata
+      // Determine the primary tire category for pricing
+      daekBrandKategori: (() => {
+        if (aftaleData.daekaftale.valgteTyper.sommer) return aftaleData.daekaftale.kategoriSommer;
+        if (aftaleData.daekaftale.valgteTyper.vinter) return aftaleData.daekaftale.kategoriVinter;
+        if (aftaleData.daekaftale.valgteTyper.helaar) return aftaleData.daekaftale.kategoriHelaar;
+        return undefined; // No tire type selected or no category applicable for pricing
+      })() as 'economy' | 'premium' | 'budget' | undefined,
+
+      // Land og moms settings
+      selectedCountry: selectedCountry,
+      erPrivat: erPrivat
     };
 
     // Beregn pris baseret på aftalevalg
@@ -431,110 +221,116 @@ const AftaleoverblikPage: React.FC = () => {
 
     // Opdater UI med prisresultat
     if (resultat) {
-      const {
-        grundpris,
-        rabatter = { fabriksGaranti: 0, loebetid: 0, total: 0 },
-        tillaeg = { varebil: 0, kmAar: 0, total: 0 },
-        daekpris = 0,
-        vejhjaelpPris = 0,
-        garantiForsikringPris = 0,
-        subtotal = 0,
-        moms = 0,
-        totalPris = 0,
-        maanedligPris = 0
-      } = resultat;
-
       setBeregnedePriser({
-        maanedligPris: maanedligPris,
-        aarligPris: maanedligPris * 12,
-        totalPris: totalPris,
-        rabat: rabatter.total || 0,
-        rabatProcent: rabatter.total ? (rabatter.total / (subtotal - rabatter.total)) * 100 : 0
+        grundpris: resultat.grundpris,
+        rabatter: resultat.rabatter || { fabriksGaranti: 0, loebetid: 0, total: 0 },
+        tillaeg: resultat.tillaeg || { varebil: 0, kmAar: 0, total: 0 },
+        daekpris: resultat.daekpris || 0,
+        vejhjaelpPris: resultat.vejhjaelpPris || 0,
+        garantiForsikringPris: resultat.garantiForsikringPris || 0,
+        subtotal: resultat.subtotal || 0,
+        moms: resultat.moms || 0,
+        totalPris: resultat.totalPris,
+        maanedligPris: resultat.maanedligPris
       });
     }
   }, [aftaleData, bildataFormData, bilAlder, bilKm, erPrivat, selectedCountry, beregnPris]);
 
-const handleVejhjaelpChange = useCallback((field: keyof typeof aftaleData.vejhjaelp, value: any) => {
-  console.log('Vejhjælp data ændret:', field, value);
-  setAftaleData(prev => ({ 
-    ...prev, 
-    vejhjaelp: {
-      valgt: true,
-      ...prev.vejhjaelp,
-      [field]: value
-    }
-  }));
-}, []);
+  // Opdater aftaledata når der foretages valg
+  const handleAftaleTypeChange = (data: { aftaleType: 'service' | 'service-og-reparation' }) => {
+    setAftaleData(prev => ({ ...prev, aftaleType: data.aftaleType }));
+  };
 
-// Handler for at toggle vejhjælp direkte via checkbox
-const handleToggleVejhjaelp = (vilHaveVejhjaelp: boolean) => {
-  setAftaleData(prev => ({
-    ...prev,
-    vejhjaelp: {
-      ...prev.vejhjaelp,
-      valgt: vilHaveVejhjaelp,
-      udbyder: vilHaveVejhjaelp ? prev.vejhjaelp.udbyder : '',
-      pakke: vilHaveVejhjaelp ? prev.vejhjaelp.pakke : '',
-      pris: vilHaveVejhjaelp ? prev.vejhjaelp.pris : 0
-    }
-  }));
-};
+  const handleAftaleDetaljerChange = (data: { kilometerPerÅr?: number; løbetid?: number }) => {
+    setAftaleData(prev => ({
+      ...prev,
+      ...data,
+      // Recalculate totalKilometer if kilometerPerÅr or løbetid changes
+      totalKilometer: (data.kilometerPerÅr || prev.kilometerPerÅr) * ((data.løbetid || prev.løbetid) / 12)
+    }));
+  };
 
-// Handler for master "Tilføj Dækaftale" toggle - single implementation
-const handleToggleDaekAftale = useCallback((vilHaveDaekAftale: boolean) => {
-  setAftaleData(prev => ({
-    ...prev,
-    daekAftale: {
-      ...prev.daekAftale,
-      valgt: vilHaveDaekAftale,
-      // Nulstil valg, hvis de deaktiveres
-      valgteTyper: vilHaveDaekAftale ? prev.daekAftale.valgteTyper : {
-        sommer: false,
-        vinter: false,
-        helaar: false
-      },
-      pris: vilHaveDaekAftale ? prev.daekAftale.pris : 0
-    }
-  }));
-}, []);
-
-// Handler for DaekAftale component changes - single implementation
-const handleDaekAftaleChange = useCallback((data: {
-  valgteTyper: { sommer: boolean; vinter: boolean; helaar: boolean };
-  kategoriSommer?: 'economy' | 'premium' | 'budget';
-  kategoriVinter?: 'economy' | 'premium' | 'budget';
-  kategoriHelaar?: 'economy' | 'premium' | 'budget';
-  // Include other fields from DaekAftaleData if necessary, e.g., dimensions
-}) => {
-  setAftaleData(prev => ({
-    ...prev,
-    daekAftale: {
-      ...prev.daekAftale,
-      valgteTyper: data.valgteTyper,
-      kategoriSommer: data.kategoriSommer || prev.daekAftale.kategoriSommer,
-      kategoriVinter: data.kategoriVinter || prev.daekAftale.kategoriVinter,
-      kategoriHelaar: data.kategoriHelaar || prev.daekAftale.kategoriHelaar,
-      // Update other fields as needed
-    }
-  }));
-}, []);
-
-// Håndterer alle andre ændringer i Garantiforsikring (udbyder, pakke, pris, etc.)
-const handleGarantiforsikringChange = (data: {
-  valgt: boolean,
-  udbyder?: string,
-  pakke?: string,
-  pris?: number,
-  forhandlerBetaler50Procent?: boolean
-}) => {
-  console.log('handleGarantiforsikringChange kaldt med:', data);
+  const handleVejhjaelpChange = useCallback((data: any) => {
+    console.log('Vejhjælp data ændret:', data);
+    setAftaleData(prev => ({ 
+      ...prev, 
+      vejhjaelpValgt: data.vejhjaelpValgt,
+      vejhjaelp: {
+        udbyder: data.udbyder || '',
+        pakke: data.pakke || '',
+        pris: data.pris || 0
+      }
+    }));
+  }, []);
   
-  // Eksplicit håndtering af toggle-handling (aktivering/deaktivering)
-  if (data.valgt === false) {
-    console.log('Deaktiverer garantiforsikring');
-    setAftaleData(prevData => {
-      const updatedState = {
-        ...prevData,
+  // Handler for at toggle vejhjælp direkte via checkbox
+  const handleToggleVejhjaelp = (vilHaveVejhjaelp: boolean) => {
+    console.log('Toggle vejhjælp:', vilHaveVejhjaelp);
+    setAftaleData(prev => ({
+      ...prev,
+      vejhjaelpValgt: vilHaveVejhjaelp,
+      // Hvis vejhjælp deaktiveres, nulstil vejhjælpsdata
+      vejhjaelp: vilHaveVejhjaelp ? prev.vejhjaelp : {
+        udbyder: '',
+        pakke: '',
+        pris: 0
+      }
+    }));
+  };
+
+  // Handler for master "Tilføj Dækaftale" toggle
+  const handleToggleDaekAftale = (vilHaveDaekAftale: boolean) => {
+    setAftaleData(prev => ({
+      ...prev,
+      daekaftale: {
+        ...prev.daekaftale,
+        valgt: vilHaveDaekAftale,
+        // Hvis brugeren fravælger dækaftale, nulstilles detaljerne
+        ...(!vilHaveDaekAftale ? {
+          valgteTyper: { sommer: false, vinter: false, helaar: false },
+          kategoriSommer: 'economy' as 'economy' | 'premium' | 'budget',
+          kategoriVinter: 'economy' as 'economy' | 'premium' | 'budget',
+          kategoriHelaar: 'economy' as 'economy' | 'premium' | 'budget',
+          // Nulstil eventuelle andre dækspecifikke felter her, hvis de findes senere
+        } : {})
+      }
+    }));
+  };
+
+  // Handler for DaekAftale component changes
+  const handleDaekAftaleChange = (data: {
+    valgteTyper: { sommer: boolean; vinter: boolean; helaar: boolean };
+    kategoriSommer?: 'economy' | 'premium' | 'budget';
+    kategoriVinter?: 'economy' | 'premium' | 'budget';
+    kategoriHelaar?: 'economy' | 'premium' | 'budget';
+    // Include other fields from DaekAftaleData if necessary, e.g., dimensions
+  }) => {
+    setAftaleData(prev => {
+      // Bevar den eksisterende 'valgt' status, da den styres af handleToggleDaekAftale
+      const masterValgtStatus = prev.daekaftale.valgt;
+      return {
+        ...prev,
+        daekaftale: {
+          ...prev.daekaftale, // Preserve existing parts of daekaftale state
+          ...data,           // Apply updates from DaekAftale component (valgteTyper, categories etc.)
+          valgt: masterValgtStatus, // Reapply the correct 'valgt' status
+        }
+      };
+    });
+  };
+
+  // Håndterer ændringer fra GarantiforsikringValg-komponenten
+  const handleGarantiforsikringChange = (data: {
+    valgt: boolean,
+    udbyder?: string,
+    pakke?: string,
+    pris?: number,
+    forhandlerBetaler50Procent: boolean
+  }) => {
+    // Hvis garantiforsikring deaktiveres, nulstil ALLE felter
+    if (!data.valgt) {
+      setAftaleData(prev => ({
+        ...prev,
         garantiforsikring: {
           valgt: false,
           udbyder: '',
@@ -542,115 +338,57 @@ const handleGarantiforsikringChange = (data: {
           pris: 0,
           forhandlerBetaler50Procent: false
         }
-      };
-      console.log('Nyt state efter deaktivering:', updatedState.garantiforsikring);
-      return updatedState;
-    });
-  } else {
-    // Garantiforsikring aktiveres eller ændres
-    console.log('Aktiverer/opdaterer garantiforsikring');
-    setAftaleData(prevData => {
-      // Hvis vi skifter udbyder, nulstil pakke og pris
-      let newPakke = prevData.garantiforsikring.pakke;
-      let newPris = prevData.garantiforsikring.pris;
-      
-      if (data.udbyder !== undefined && data.udbyder !== prevData.garantiforsikring.udbyder) {
-        console.log('Skifter udbyder - nulstiller pakke og pris');
-        newPakke = '';
-        newPris = 0;
-      }
-      
-      // Hvis pakke er angivet, brug den (ellers brug enten nulstillet værdi eller eksisterende)
-      if (data.pakke !== undefined) {
-        newPakke = data.pakke;
-      }
-      
-      // Hvis pris er angivet, brug den (ellers brug enten nulstillet værdi eller eksisterende)
-      if (data.pris !== undefined) {
-        newPris = data.pris;
-      }
-      
-      const updatedState = {
-        ...prevData,
-        garantiforsikring: {
-          ...prevData.garantiforsikring,
-          valgt: true,
-          udbyder: data.udbyder !== undefined ? data.udbyder : prevData.garantiforsikring.udbyder,
-          pakke: newPakke,
-          pris: newPris,
-          forhandlerBetaler50Procent: data.forhandlerBetaler50Procent !== undefined ? 
-            data.forhandlerBetaler50Procent : prevData.garantiforsikring.forhandlerBetaler50Procent
-        }
-      };
-      
-      console.log('Nyt state efter aktivering/opdatering:', updatedState.garantiforsikring);
-      return updatedState;
-    });
-  }
-};
-
-// Toggle handler for garantiforsikring
-const handleToggleGarantiforsikring = useCallback((valgt: boolean) => {
-  setAftaleData(prev => ({
-    ...prev,
-    garantiforsikring: {
-      ...prev.garantiforsikring,
-      valgt,
-      udbyder: valgt ? prev.garantiforsikring.udbyder : '',
-      pakke: valgt ? prev.garantiforsikring.pakke : '',
-      pris: valgt ? prev.garantiforsikring.pris : 0,
-      forhandlerBetaler50Procent: valgt ? prev.garantiforsikring.forhandlerBetaler50Procent : false
+      }));
+      return;
     }
-  }));
-}, []);
-
-const harIndtegningsFejl = valideringsFejl.alder || valideringsFejl.kilometer;
-  
-// Effekt til at validere bilens alder og kilometer - single declaration
-const { bilAlder, bilKm } = useMemo(() => {
-  const age = beregnBilAlder(bildataFormData.foersteRegistreringsdato || '');
-  const km = parseInt(bildataFormData.kilometer || '0', 10) || 0;
-  return { bilAlder: age, bilKm: km };
-}, [bildataFormData.foersteRegistreringsdato, bildataFormData.kilometer]);
-  
-useEffect(() => {
-  const alderOver = bilAlder > maksAlderVedIndtegning;
-  const kmOver = bilKm > maksKmVedIndtegning;
-  
-  if (alderOver || kmOver) {
-    setValideringsFejl(prev => ({
+    
+    // Ellers opdater med de nye værdier
+    setAftaleData(prev => ({
       ...prev,
-      alder: alderOver,
-      kilometer: kmOver
+      garantiforsikring: {
+        ...prev.garantiforsikring,
+        valgt: true,
+        udbyder: data.udbyder !== undefined ? data.udbyder : prev.garantiforsikring.udbyder,
+        pakke: data.pakke !== undefined ? data.pakke : prev.garantiforsikring.pakke,
+        pris: data.pris !== undefined ? data.pris : prev.garantiforsikring.pris,
+        forhandlerBetaler50Procent: data.forhandlerBetaler50Procent
+      }
     }));
-  } else {
-    setValideringsFejl(prev => {
-      const newState = { ...prev };
-      delete newState.alder;
-      delete newState.kilometer;
-      return newState;
-    });
-  }
-}, [bilAlder, bilKm]);
+  };
 
-  // Format price function with currency
-  const formatPris = useCallback((pris: number): string => {
+  // Handler for Lånebil selection
+  const handleLaanebilChange = (valgt: 'ja' | 'nej') => {
+    setAftaleData(prev => ({
+      ...prev,
+      laanebilValgt: valgt,
+    }));
+  };
+
+  // Navigerer tilbage til bildata siden
+  const gaTilBildata = () => {
+    navigate('/');
+  };
+
+  // Navigerer frem til kundedata siden
+  const gaTilKundedata = () => {
+    navigate('/kundedata', { state: { bildataFormData, aftaleData, prisResultat: beregnedePriser } });
+  };
+
+  const harIndtegningsFejl = valideringsFejl.alder || valideringsFejl.kilometer;
+
+  // Formatteringsfunktion til priser
+  const formatPris = (pris: number) => {
     return new Intl.NumberFormat('da-DK', { 
       style: 'currency', 
       currency: selectedCountry.currency.code
     }).format(pris);
-  }, [selectedCountry.currency.code]);
-
-  // Calculate if there are any validation errors
-  const harIndtegningsFejl = useMemo(() => 
-    valideringsFejl.alder || valideringsFejl.kilometer, 
-    [valideringsFejl.alder, valideringsFejl.kilometer]
-  );
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Main content */}
+    <div className="bg-gray-50 min-h-screen py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Advarsel ved direkte navigation */}
         {directNavigation && (
           <div className="mb-6 p-4 rounded-md bg-yellow-50 border border-yellow-200">
             <div className="flex">
@@ -660,44 +398,38 @@ useEffect(() => {
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-yellow-800">Manglende biloplysninger</h3>
                 <div className="mt-2 text-sm text-yellow-700">
-                  <p>Du er navigeret direkte til aftaleoverblikket uden først at indtaste biloplysninger.</p>
-                  <button
-                    onClick={gaTilBildata}
-                    className="mt-2 text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    Gå tilbage for at indtaste biloplysninger
-                  </button>
+                  <p>
+                    Du er navigeret direkte til aftaleoverblikket uden først at indtaste biloplysninger. 
+                    For at få den mest præcise aftaleberegning anbefaler vi, at du starter med at udfylde bildata.
+                  </p>
+                  <div className="mt-3">
+                    <button
+                      onClick={gaTilBildata}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                    >
+                      <FaArrowLeft className="mr-2" /> Gå til Bildata
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-};
 
-// Advarsel ved direkte navigation
-{directNavigation && (
-  <div className="mb-6 p-4 rounded-md bg-yellow-50 border border-yellow-200">
-    <div className="flex">
-      <div className="flex-shrink-0">
-        <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
-      </div>
-      <div className="ml-3">
-        <h3 className="text-sm font-medium text-yellow-800">Manglende biloplysninger</h3>
-        <div className="mt-2 text-sm text-yellow-700">
-          <p>
-            Du er navigeret direkte til aftaleoverblikket uden først at indtaste biloplysninger. 
-            For at få den mest præcise aftaleberegning anbefaler vi, at du starter med at udfylde bildata.
-          </p>
-          <div className="mt-3">
-            <button
-              onClick={gaTilBildata}
-              className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
-            >
-              <FaArrowLeft className="mr-2" /> Gå til Bildata
-            </button>
+        {/* Tilbage til bildata knap og titel */}
+        <div className="flex items-center justify-between mb-6">
+          <button 
+            onClick={gaTilBildata}
+            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+          >
+            <FaArrowLeft className="mr-1" /> Bildata
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900">Aftaleoverblik</h1>
+          <div></div> {/* Tom div for at centrere titlen */}
+        </div>
+
+        {/* Bildata-overblik sektion */}
+        <div className="mb-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
           <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-800">Bilen du opretter serviceaftale til</h2>
           </div>
@@ -720,11 +452,16 @@ useEffect(() => {
                 )}
                 
                 <div className="text-center">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-base font-medium text-gray-900">
                     {bildataFormData.bilmaerke} {bildataFormData.model}
                   </p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-sm text-gray-600 mt-1">
                     {bildataFormData.betegnelse}
+                  </p>
+                  <p className="text-sm font-medium text-gray-800 mt-2">
+                    {typeof bildataFormData.kilometer === 'string' 
+                      ? parseInt(bildataFormData.kilometer.replace(/[,.\s]/g, ''), 10).toLocaleString('da-DK')
+                      : bildataFormData.kilometer?.toLocaleString('da-DK') || '0'} km
                   </p>
                 </div>
               </div>
@@ -802,23 +539,19 @@ useEffect(() => {
           </div>
         )}
         
-        {/* Aftalevalg sektion - Forbedret design */}
+        {/* Aftalevalg sektion */}
         <div className="mb-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="bg-blue-600 px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-white flex items-center">
-              <FaCogs className="mr-2" /> Vælg aftaletype og detaljer
-            </h2>
+          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-medium text-gray-800">Vælg aftaletype og løbetid</h2>
           </div>
           
           <div className="p-6">
             <div className="grid md:grid-cols-3 gap-6">
-              {/* Aftaletype vælger - forbedret design */}
+              {/* Aftaletype vælger */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  <FaCheck className="mr-2 text-blue-500" /> Vælg aftaletype
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Aftaletype</label>
                 <div className="flex flex-col space-y-3">
-                  <div className="relative transition-all duration-200 transform hover:scale-105">
+                  <div className="relative">
                     <input
                       type="radio"
                       id="aftaletype-service"
@@ -829,18 +562,18 @@ useEffect(() => {
                     />
                     <label 
                       htmlFor="aftaletype-service" 
-                      className="flex items-center p-4 border-2 rounded-lg cursor-pointer 
-                              peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:bg-gray-50 shadow-sm"
+                      className="flex items-center p-3 border rounded-lg cursor-pointer 
+                              peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:bg-gray-50"
                     >
                       <div className="flex-shrink-0 h-6 w-6 flex items-center justify-center rounded-full 
-                                border-2 border-gray-400 mr-3 peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-colors duration-200">
-                        <div className={`w-3 h-3 rounded-full bg-white ${aftaleData.aftaleType === 'service' ? 'block' : 'hidden'}`}></div>
+                                border border-gray-400 mr-3 peer-checked:bg-blue-500 peer-checked:border-blue-500">
+                        <div className={`w-3 h-3 rounded-full bg-blue-500 ${aftaleData.aftaleType === 'service' ? 'block' : 'hidden'}`}></div>
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium">Service</p>
                           <p className="text-sm font-medium text-blue-600">
-                            {formatPris(beregnedePriser.grundpris * 0.8)}/md
+                            {new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(beregnedePriser.grundpris * 0.8)}/md
                           </p>
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Standardservice efter producentens anvisninger</p>
@@ -848,7 +581,7 @@ useEffect(() => {
                     </label>
                   </div>
                   
-                  <div className="relative transition-all duration-200 transform hover:scale-105">
+                  <div className="relative">
                     <input
                       type="radio"
                       id="aftaletype-service-og-reparation"
@@ -859,18 +592,18 @@ useEffect(() => {
                     />
                     <label 
                       htmlFor="aftaletype-service-og-reparation" 
-                      className="flex items-center p-4 border-2 rounded-lg cursor-pointer 
-                              peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:bg-gray-50 shadow-sm"
+                      className="flex items-center p-3 border rounded-lg cursor-pointer 
+                              peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:bg-gray-50"
                     >
                       <div className="flex-shrink-0 h-6 w-6 flex items-center justify-center rounded-full 
-                                border-2 border-gray-400 mr-3 peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-colors duration-200">
-                        <div className={`w-3 h-3 rounded-full bg-white ${aftaleData.aftaleType === 'service-og-reparation' ? 'block' : 'hidden'}`}></div>
+                                border border-gray-400 mr-3 peer-checked:bg-blue-500 peer-checked:border-blue-500">
+                        <div className={`w-3 h-3 rounded-full bg-blue-500 ${aftaleData.aftaleType === 'service-og-reparation' ? 'block' : 'hidden'}`}></div>
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium">Service & Reparation</p>
                           <p className="text-sm font-medium text-blue-600">
-                            {formatPris(beregnedePriser.grundpris)}/md
+                            {new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(beregnedePriser.grundpris)}/md
                           </p>
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Komplet serviceaftale inkl. reparationer og sliddele</p>
@@ -880,87 +613,80 @@ useEffect(() => {
                 </div>
               </div>
               
-              {/* Løbetid og km vælger - forbedret design */}
+              {/* Løbetid vælger */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  <FaCogs className="mr-2 text-blue-500" /> Aftaleperiode
-                </label>
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 shadow-inner">
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Løbetid</label>
-                    <select
-                      className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white shadow-sm"
-                      value={aftaleData.løbetid}
-                      onChange={(e) => handleAftaleDetaljerChange({ løbetid: parseInt(e.target.value) })}
-                    >
-                      <option value="12">12 måneder (1 år)</option>
-                      <option value="24">24 måneder (2 år)</option>
-                      <option value="36">36 måneder (3 år)</option>
-                      <option value="48">48 måneder (4 år)</option>
-                      <option value="60">60 måneder (5 år)</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Årligt kørsel</label>
-                    <select
-                      className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md bg-white shadow-sm"
-                      value={aftaleData.kilometerPerÅr}
-                      onChange={(e) => handleAftaleDetaljerChange({ kilometerPerÅr: parseInt(e.target.value) })}
-                    >
-                      <option value="10000">10.000 km/år</option>
-                      <option value="15000">15.000 km/år</option>
-                      <option value="20000">20.000 km/år</option>
-                      <option value="25000">25.000 km/år</option>
-                      <option value="30000">30.000 km/år</option>
-                      <option value="35000">35.000 km/år</option>
-                      <option value="40000">40.000 km/år</option>
-                      <option value="45000">45.000 km/år</option>
-                      <option value="50000">50.000 km/år</option>
-                    </select>
-                  </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Løbetid</label>
+                <div className="relative">
+                  <select
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    value={aftaleData.løbetid}
+                    onChange={(e) => setAftaleData(prev => ({ ...prev, løbetid: parseInt(e.target.value) }))}
+                  >
+                    <option value="12">12 måneder (1 år)</option>
+                    <option value="24">24 måneder (2 år)</option>
+                    <option value="36">36 måneder (3 år)</option>
+                    <option value="48">48 måneder (4 år)</option>
+                    <option value="60">60 måneder (5 år)</option>
+                  </select>
+                </div>
+                
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Årligt kørsel</label>
+                  <select
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                    value={aftaleData.kilometerPerÅr}
+                    onChange={(e) => setAftaleData(prev => ({ ...prev, kilometerPerÅr: parseInt(e.target.value) }))}
+                  >
+                    <option value="10000">10.000 km/år</option>
+                    <option value="15000">15.000 km/år</option>
+                    <option value="20000">20.000 km/år</option>
+                    <option value="25000">25.000 km/år</option>
+                    <option value="30000">30.000 km/år</option>
+                    <option value="35000">35.000 km/år</option>
+                    <option value="40000">40.000 km/år</option>
+                    <option value="45000">45.000 km/år</option>
+                    <option value="50000">50.000 km/år</option>
+                  </select>
                 </div>
               </div>
               
-              {/* Samlet overblik - forbedret design */}
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 shadow-sm">
-                <h3 className="font-medium text-blue-800 mb-3 flex items-center">
-                  <FaInfoCircle className="mr-2" /> Samlet overblik
-                </h3>
+              {/* Samlet overblik */}
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h3 className="font-medium text-gray-900 mb-2">Samlet overblik</h3>
                 
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center bg-white p-2 rounded-md shadow-sm">
+                  <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Aftaletype:</span>
-                    <span className="text-sm font-medium text-blue-700">
+                    <span className="text-sm font-medium">
                       {aftaleData.aftaleType === 'service' ? 'Service' : 'Service & Reparation'}
                     </span>
                   </div>
                   
-                  <div className="flex justify-between items-center bg-white p-2 rounded-md shadow-sm">
+                  <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Løbetid:</span>
-                    <span className="text-sm font-medium text-blue-700">{aftaleData.løbetid} måneder</span>
+                    <span className="text-sm font-medium">{aftaleData.løbetid} måneder</span>
                   </div>
                   
-                  <div className="flex justify-between items-center bg-white p-2 rounded-md shadow-sm">
+                  <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Årligt kørsel:</span>
-                    <span className="text-sm font-medium text-blue-700">{aftaleData.kilometerPerÅr.toLocaleString()} km/år</span>
+                    <span className="text-sm font-medium">{aftaleData.kilometerPerÅr.toLocaleString()} km/år</span>
                   </div>
                   
-                  <div className="pt-3 mt-2 border-t border-blue-200">
+                  <div className="pt-2 mt-2 border-t border-gray-200">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-blue-700">Samlet kørsel i perioden:</span>
-                      <span className="text-sm font-bold text-blue-700">
+                      <span className="text-sm font-medium text-gray-700">Samlet kilometer i perioden:</span>
+                      <span className="text-sm font-bold">
                         {Math.round(aftaleData.totalKilometer).toLocaleString()} km
                       </span>
                     </div>
-                    <div className="mt-2">
-                      <div className="w-full bg-blue-200 rounded-full h-3">
+                    <div className="mt-1">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
-                          className="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-in-out"
+                          className="bg-blue-600 h-2 rounded-full"
                           style={{ width: `${Math.min(aftaleData.totalKilometer / 100000 * 100, 100)}%` }}
                         ></div>
                       </div>
-                      <div className="flex justify-between text-xs text-blue-600 mt-1">
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
                         <span>0 km</span>
                         <span>100.000 km</span>
                       </div>
@@ -976,86 +702,126 @@ useEffect(() => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Venstre kolonne: Aftalekomponenter */}
           <div className="md:col-span-2 space-y-6">
-            <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6">
-              <h2 className="text-xl font-semibold mb-4">Bil og aftaleoplysninger</h2>
+            {/* Bil og aftaleoplysninger sektionen er fjernet efter kundens ønske */}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <span className="block text-sm text-gray-600">Mærke</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.bilmaerke}</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Model</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.model}</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Betegnelse</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.betegnelse}</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Første registreringsdato</span>
-                  <span className="font-medium text-gray-900">{formatDate(bildataFormData.foersteRegistreringsdato)}</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Kilometerstand</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.kilometer} km</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Forventet km/år</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.kmAarligt} km</span>
-                </div>
-                {bildataFormData.fabriksgarantiMdr && (
-                  <div>
-                    <span className="block text-sm text-gray-600">Udvidet fabriksgaranti (mdr)</span>
-                    <span className="font-medium text-gray-900">{bildataFormData.fabriksgarantiMdr} mdr</span>
-                  </div>
-                )}
+            {/* Justering af Kilometer per år sektionen er fjernet efter kundens ønske */}
+
+            {/* Vejhjælp sektion - strømlinet uden dropdown */}
+            <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Vejhjælp</h2>
+              </div>
+              <div className="p-6">
+                <VejhjaelpValg
+                  onChange={handleVejhjaelpChange}
+                  visKunForetrukneUdbydere={true}
+                  initialUdbyder={aftaleData.vejhjaelp?.udbyder || ''}
+                  initialPakke={aftaleData.vejhjaelp?.pakke || ''}
+                />
               </div>
             </div>
-
-            {/* Denne sektion er fjernet for at undgå duplikation, da løbetid og kilometer per år allerede kan justeres ovenfor */}
-
-            {/* Garantiforsikring sektion */}
-            <GarantiforsikringSektion
-              valgt={aftaleData.garantiforsikring.valgt}
-              pris={aftaleData.garantiforsikring.pris}
-              udbyder={aftaleData.garantiforsikring.udbyder}
-              pakke={aftaleData.garantiforsikring.pakke}
-              forhandlerBetaler50Procent={aftaleData.garantiforsikring.forhandlerBetaler50Procent}
-              onToggle={handleToggleGarantiforsikring}
-              onChange={handleGarantiforsikringChange}
-              bilAlder={bilAlder}
-              bilKm={bilKm}
-              motorStoerrelseCcm={bildataFormData.motorStorrelse ? parseInt(bildataFormData.motorStorrelse.toString(), 10) : undefined}
-              motorEffektHk={bildataFormData.hk ? parseInt(bildataFormData.hk.toString(), 10) : undefined}
-              bilType={bildataFormData.bilType || 'personbil'}
-              braendstofType={bildataFormData.braendstofType || 'benzin'}
-            />
-
-            {/* Vejhjælp sektion - ensrettet design med de andre tillægsprodukter */}
-            <div className="mt-6 bg-white rounded-lg p-0 border border-gray-200">
-              <div className="flex items-center justify-between px-6 py-4">
-                <div className="flex-1 flex items-center">
-                  <div className="bg-green-100 rounded-full p-2 mr-3">
-                    <FaRoad className="text-green-600 text-lg" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center">
-                      <h3 className="font-medium">Vejhjælp</h3>
+            
+            {/* Dækaftale sektion - strømlinet design */}
+            <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Dækaftale</h2>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex items-center">
+                    <div className="bg-blue-100 rounded-full p-2 mr-3 relative">
+                      <FaCircleNotch className="text-blue-600 text-lg" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-blue-100 rounded-full w-2 h-2"></div>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center">
+                        <h3 className="font-medium">Dækaftale</h3>
                       <div className="relative ml-2 group">
                         <button className="text-gray-400 hover:text-gray-600">
                           <FaInfoCircle size={16} />
                         </button>
                         <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
                           <div className="text-sm text-gray-600">
-                            <p className="font-semibold mb-1">Vejhjælp inkluderer:</p>
+                            <p className="font-semibold mb-1">Dækaftale inkluderer:</p>
                             <ul className="list-disc pl-4 space-y-1">
-                              <li>Assistance ved driftsstop</li>
-                              <li>Bugsering til nærmeste værksted</li>
-                              <li>Starthjælp ved batteriproblemer</li>
-                              <li>Hjulskifte ved punktering</li>
-                              <li>Døgnåben telefonservice</li>
-                              <li>Dækning i hele Europa</li>
+                              <li>Nye kvalitetsdæk efter behov</li>
+                              <li>Dækskifte mellem sæsoner</li>
+                              <li>Opbevaring af ikke-monterede dæk</li>
+                              <li>Afbalancering og montering</li>
+                              <li>Ventilskift og korrekt dæktryk</li>
+                              <li>Mulighed for sommer-, vinter- eller helårsdæk</li>
+                            </ul>
+                            <div className="mt-2 pt-2 border-t border-gray-200">
+                              <p>Vælg mellem budget, economy eller premium dækbrands for at matche dine behov og økonomi.</p>
+                            </div>
+                          </div>
+                          <div className="absolute bottom-0 left-3 transform translate-y-full">
+                            <div className="w-3 h-3 bg-white rotate-45 transform origin-center"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-sm text-gray-500">Nye dæk, skifte og opbevaring til din bil</p>
+                      <div className="flex items-center">
+                        <a className="text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer underline ml-2">Se priser</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer ml-4">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={aftaleData.daekaftale.valgt}
+                    onChange={() => handleToggleDaekAftale(!aftaleData.daekaftale.valgt)}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                </label>
+              </div>
+              
+              {/* Dækaftale configurator - kun vist når valgt */}
+              {aftaleData.daekaftale.valgt && (
+                <div className="border-t border-gray-200 bg-gray-50">
+                  <DaekAftale
+                    initialData={aftaleData.daekaftale}
+                    onChange={handleDaekAftaleChange}
+                  />
+                </div>
+              )}
+            </div>
+            
+            {/* Garantiforsikring sektion - optimeret design */}
+            <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Garantiforsikring</h2>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex items-center">
+                    <div className="bg-amber-100 rounded-full p-2 mr-3">
+                      <FaShieldAlt className="text-amber-600 text-lg" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center">
+                        <h3 className="font-medium">Garantiforsikring</h3>
+                        <div className="bg-amber-50 rounded-full px-2 py-0.5 text-xs font-medium text-amber-800 ml-2">Anbefalet</div>
+                      <div className="relative ml-2 group">
+                        <button className="text-gray-400 hover:text-gray-600">
+                          <FaInfoCircle size={16} />
+                        </button>
+                        <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
+                          <div className="text-sm text-gray-600">
+                            <p className="font-semibold mb-1">Garantiforsikring inkluderer:</p>
+                            <ul className="list-disc pl-4 space-y-1">
+                              <li>Dækning af omkostninger ved mekaniske svigt</li>
+                              <li>Beskyttelse efter bilens originale garanti udløber</li>
+                              <li>Dækning af rådgiver efter dit valg</li>
+                              <li>Ingen ubehagelige overraskelser ved dyre reparationer</li>
+                              <li>Valg mellem forskellige dækningsniveauer</li>
+                              <li>Mulighed for 50% medfinansiering fra forhandler</li>
                             </ul>
                           </div>
                           <div className="absolute bottom-0 left-3 transform translate-y-full">
@@ -1065,10 +831,10 @@ useEffect(() => {
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-1">
-                      <p className="text-sm text-gray-500">Assistance ved driftsstop og uheld</p>
+                      <p className="text-sm text-gray-500">Ekstra sikkerhed mod mekaniske svigt</p>
                       <div className="flex items-center">
-                        <p className="text-sm font-medium text-green-600 mr-1">Fra</p>
-                        <p className="text-sm font-bold text-green-600">79 kr/md</p>
+                        <p className="text-sm font-medium text-amber-600 mr-1">Fra</p>
+                        <p className="text-sm font-bold text-amber-600">99 kr/md</p>
                       </div>
                     </div>
                   </div>
@@ -1077,160 +843,223 @@ useEffect(() => {
                   <input 
                     type="checkbox" 
                     className="sr-only peer"
-                    checked={aftaleData.vejhjaelp.valgt}
-                    onChange={() => handleToggleVejhjaelp(!aftaleData.vejhjaelp.valgt)}
+                    checked={aftaleData.garantiforsikring.valgt}
+                    onChange={() => {
+                      // Direkte toggle af garantiforsikring
+                      handleGarantiforsikringChange({
+                        valgt: !aftaleData.garantiforsikring.valgt,
+                        udbyder: '',
+                        pakke: '',
+                        pris: 0,
+                        forhandlerBetaler50Procent: false
+                      });
+                    }}
                   />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
                 </label>
               </div>
               
-              {/* VejhjaelpValg-komponent - kun vist når vejhjælp er aktiveret - opdateret til samme layout som garantiforsikring */}
-              {aftaleData.vejhjaelp.valgt && (
+              {/* GarantiforsikringValg-komponent - kun vist når garantiforsikring er aktiveret */}
+              {aftaleData.garantiforsikring.valgt && (
                 <div className="border-t border-gray-200">
                   <div className="p-6">
-                    <div className="mb-6">
-                      <h3 className="text-base font-semibold text-gray-800 mb-4">Vælg vejhjælpsudbyder og pakke</h3>
-                      
-                      {/* Udbyder og pakke vælgere */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <label htmlFor="vejhjaelp-udbyder" className="block text-sm font-medium text-gray-700 mb-2">
-                            Vejhjælpsudbyder
-                          </label>
-                          <select
-                            id="vejhjaelp-udbyder"
-                            className="block w-full p-2.5 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                            value={aftaleData.vejhjaelp.udbyder || ''}
-                            onChange={(e) => {
-                              const newUdbyder = e.target.value;
-                              handleVejhjaelpChange({
-                                udbyder: newUdbyder,
-                                pakke: '',
-                                pris: 0
-                              });
-                            }}
-                          >
-                            <option value="">Vælg udbyder...</option>
-                            <option value="falck">Falck</option>
-                            <option value="sos">SOS Dansk Autohjælp</option>
-                            <option value="tryg">Tryg Vejhjælp</option>
-                            <option value="leasy">Leasy Vejhjælp</option>
-                          </select>
-                        </div>
-                        
-                        <div>
-                          <label htmlFor="vejhjaelp-pakke" className="block text-sm font-medium text-gray-700 mb-2">
-                            Vejhjælpspakke
-                          </label>
-                          <select
-                            id="vejhjaelp-pakke"
-                            className="block w-full p-2.5 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                            value={aftaleData.vejhjaelp.pakke || ''}
-                            onChange={(e) => {
-                              const newPakke = e.target.value;
-                              let newPris = 0;
-                              
-                              // Simuler pris baseret på valgt pakke
-                              if (newPakke === 'basis') newPris = 79;
-                              if (newPakke === 'plus') newPris = 99;
-                              if (newPakke === 'premium') newPris = 129;
-                              
-                              handleVejhjaelpChange({
-                                udbyder: aftaleData.vejhjaelp.udbyder,
-                                pakke: newPakke,
-                                pris: newPris
-                              });
-                            }}
-                            disabled={!aftaleData.vejhjaelp.udbyder}
-                          >
-                            <option value="">Vælg pakke...</option>
-                            <option value="basis">Basis - 79 kr/md</option>
-                            <option value="plus">Plus - 99 kr/md</option>
-                            <option value="premium">Premium - 129 kr/md</option>
-                          </select>
-                        </div>
-                      </div>
-                      
-                      {/* Pakkedetaljer - kun vist når både udbyder og pakke er valgt */}
-                      {aftaleData.vejhjaelp.udbyder && aftaleData.vejhjaelp.pakke && (
-                        <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center">
-                              <div className="mr-2 bg-green-100 p-1 rounded-full">
-                                <FaCheck className="text-green-600 text-sm" />
-                              </div>
-                              <h4 className="font-medium text-gray-800">
-                                {aftaleData.vejhjaelp.udbyder === 'falck' ? 'Falck' :
-                                 aftaleData.vejhjaelp.udbyder === 'sos' ? 'SOS Dansk Autohjælp' :
-                                 aftaleData.vejhjaelp.udbyder === 'tryg' ? 'Tryg Vejhjælp' :
-                                 aftaleData.vejhjaelp.udbyder === 'leasy' ? 'Leasy Vejhjælp' : ''} {' '}
-                                {aftaleData.vejhjaelp.pakke === 'basis' ? 'Basis' :
-                                 aftaleData.vejhjaelp.pakke === 'plus' ? 'Plus' :
-                                 aftaleData.vejhjaelp.pakke === 'premium' ? 'Premium' : ''}
-                              </h4>
-                            </div>
-                            <span className="font-semibold text-green-700">{aftaleData.vejhjaelp.pris} kr/md</span>
-                          </div>
-                          
-                          <div className="mt-2 flex justify-between items-center">
-                            <div className="text-sm text-gray-500">
-                              {aftaleData.vejhjaelp.pakke === 'basis' ? 'Dækningsområde: Danmark' :
-                               aftaleData.vejhjaelp.pakke === 'plus' ? 'Dækningsområde: Skandinavien' :
-                               aftaleData.vejhjaelp.pakke === 'premium' ? 'Dækningsområde: Hele Europa' : ''}
-                            </div>
-                            
-                            <a 
-                              href="#" 
-                              onClick={(e) => {
-                                e.preventDefault();
-                                // Her kan man implementere åbning af PDF eller link baseret på udbyder
-                                alert(`Åbner information om ${aftaleData.vejhjaelp.udbyder} ${aftaleData.vejhjaelp.pakke} pakke`);
-                              }}
-                              className="text-green-600 hover:text-green-800 text-sm font-medium flex items-center"
-                            >
-                              <FaFileAlt className="mr-1" /> Se fuld beskrivelse
-                            </a>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Skjul den originale VejhjaelpValg komponent, da vi har erstattet den med vores egen implementering */}
-                    <div className="hidden">
-                      <VejhjaelpValg
-                        onChange={handleVejhjaelpChange}
-                        visKunForetrukneUdbydere={true}
-                        initialUdbyder={aftaleData.vejhjaelp?.udbyder || ''}
-                        initialPakke={aftaleData.vejhjaelp?.pakke || ''}
-                      />
-                    </div>
+                    <GarantiforsikringValg 
+                      initialSelected={aftaleData.garantiforsikring.valgt}
+                      initialCoverage={aftaleData.garantiforsikring.pakke}
+                      bilAlder={bilAlder}
+                      bilKm={bilKm}
+                      motorStoerrelseCcm={bildataFormData.motorStorrelse ? parseInt(bildataFormData.motorStorrelse.toString(), 10) : undefined}
+                      motorEffektHk={bildataFormData.hk ? parseInt(bildataFormData.hk.toString(), 10) : undefined}
+                      bilType={bildataFormData.bilType || 'personbil'}
+                      braendstofType={bildataFormData.braendstofType || 'benzin'}
+                      onChange={handleGarantiforsikringChange}
+                    />
                   </div>
                 </div>
               )}
             </div>
-          </div>
-          
-          {/* Højre kolonne: Prisoverblik */}
-          <div className="md:col-span-1">
-            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm sticky top-6">
-              <h2 className="text-xl font-semibold mb-4">Prisoversigt</h2>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Grundpris pr. måned:</span>
-                  <span className="font-medium">{formatPris(beregnedePriser.maanedsPris)}</span>
-                </div>
-                <div className="border-t border-gray-200 pt-2">
-                  <div className="flex justify-between font-semibold">
-                    <span>I alt pr. måned:</span>
-                    <span>{formatPris(beregnedePriser.maanedsPris)}</span>
+            
+            {/* Lånebil sektion */}
+            <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Lånebil</h2>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex items-center">
+                    <div className="bg-green-100 rounded-full p-2 mr-3">
+                      <FaCar className="text-green-600 text-lg" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center">
+                        <h3 className="font-medium">Lånebil ved Service</h3>
+                        <div className="relative ml-2 group">
+                        <button className="text-gray-400 hover:text-gray-600">
+                          <FaInfoCircle size={16} />
+                        </button>
+                        <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
+                        <div className="text-sm text-gray-600">
+                          <p className="font-semibold mb-1">Lånebil ved service inkluderer:</p>
+                          <ul className="list-disc pl-4 space-y-1">
+                            <li>Lånebil i samme størrelsesklasse</li>
+                            <li>Fri km under låneperioden</li>
+                            <li>Inkluderet ved alle servicetjek og reparationer</li>
+                            <li>Du betaler kun forbrugsudgifter</li>
+                          </ul>
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <p>Undgå at skulle finde transport løsninger eller besøge værkstedet flere gange.</p>
+                          </div>
+                          </div>
+                          <div className="absolute bottom-0 left-3 transform translate-y-full">
+                            <div className="w-3 h-3 bg-white rotate-45 transform origin-center"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-sm text-gray-500">Få en lånebil når din bil er til service</p>
+                      <div className="flex items-center">
+                        <p className="text-sm font-medium text-purple-600">Inkluderet</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <button 
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-                  onClick={() => {}}
-                >
-                  Opret aftale
-                </button>
+                <label className="relative inline-flex items-center cursor-pointer ml-4">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={aftaleData.laanebilValgt === 'ja'}
+                    onChange={() => handleLaanebilChange(aftaleData.laanebilValgt === 'ja' ? 'nej' : 'ja')}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                </label>
+              </div>
+              
+              {/* Bekræftelse hvis aktiveret */}
+              {aftaleData.laanebilValgt === 'ja' && (
+                <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 text-sm text-gray-600 flex items-center">
+                  <div className="bg-purple-100 rounded-full p-1.5 mr-2">
+                    <FaCheck className="text-purple-600 text-xs" />
+                  </div>
+                  <p>Lånebil er inkluderet ved alle serviceophold. Du skal blot betale forbrugsudgifter.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Navigationknapper */}
+            <div className="mt-8 flex justify-between">
+              <button
+                onClick={gaTilBildata}
+                className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-md flex items-center"
+              >
+                <FaArrowLeft className="mr-1" /> Tilbage til bildata
+              </button>
+
+              {harIndtegningsFejl && (
+                <div className="text-right mb-2 text-sm text-amber-600">
+                  <FaExclamationTriangle className="inline-block mr-1" />  
+                  Særlig godkendelse påkrævet
+                </div>
+              )}
+              <button
+                onClick={gaTilKundedata}
+                className={`px-6 py-3 ${harIndtegningsFejl ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-medium rounded-md flex items-center`}
+              >
+                Fortsæt til kundedata <FaArrowRight className="ml-2" />
+              </button>
+            </div>
+          </div>
+
+          {/* Prisoverblik */}
+          <div className="md:col-span-1">
+            <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200 sticky top-4">
+              <h3 className="text-xl font-medium mb-4">Prisoversigt</h3>
+
+              <div className="space-y-3">
+                <div className="border-t border-gray-200 px-4 py-3">
+                  <div className="flex justify-between items-center text-lg font-semibold">
+                    <span>Grundpris</span>
+                    <span>{formatPris(beregnedePriser.grundpris)}</span>
+                  </div>
+                </div>
+
+                {beregnedePriser.daekpris > 0 && (
+                  <div className="border-t border-gray-200 px-4 py-3">
+                    <div className="flex justify-between items-center font-medium">
+                      <span>Dækaftale</span>
+                      <span>{formatPris(beregnedePriser.daekpris)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {beregnedePriser.vejhjaelpPris > 0 && (
+                  <div className="border-t border-gray-200 px-4 py-3">
+                    <div className="flex justify-between items-center font-medium">
+                      <span>Vejhjælp</span>
+                      <span>{formatPris(beregnedePriser.vejhjaelpPris)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {beregnedePriser.garantiForsikringPris > 0 && (
+                  <div className="border-t border-gray-200 px-4 py-3">
+                    <div className="flex justify-between items-center font-medium">
+                      <span>Garantiforsikring</span>
+                      <span>{formatPris(beregnedePriser.garantiForsikringPris)}</span>
+                    </div>
+                    {aftaleData.garantiforsikring.forhandlerBetaler50Procent && (
+                      <div className="text-sm text-green-600 mt-1 text-right">Inkl. 50% forhandlerrabat</div>
+                    )}
+                  </div>
+                )}
+
+                <div className="border-t border-b border-gray-200 px-4 py-3">
+                  {/* Rabatlinje for fabriksgaranti hvis relevant */}
+                  {beregnedePriser.rabatter?.fabriksGaranti > 0 && (
+                    <div className="flex justify-between text-sm text-green-700">
+                      <span>Rabat pga. fabriksgaranti</span>
+                      <span>-{formatPris(beregnedePriser.rabatter.fabriksGaranti)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span>Samlet pris (ekskl. moms)</span>
+                    <span className="font-medium">{formatPris(beregnedePriser.totalPris)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 bg-blue-50 p-3 rounded-md border border-blue-200">
+                  <div className="text-center">
+                    <div className="text-gray-600 text-sm flex items-center justify-center">
+                      Månedlig ydelse
+                      <div className="relative ml-1 group">
+                        <button className="text-blue-400 hover:text-blue-600 focus:outline-none">
+                          <FaInfoCircle size={15} />
+                        </button>
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10 border border-blue-200">
+                          <div className="text-xs text-gray-700">
+                            Alle servicepriser (garanti, vejhjælp, dæk mm.) indtastes som årlig pris i admin. Systemet omregner automatisk til månedlig pris ud fra den valgte løbetid.
+                          </div>
+                          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+                            <div className="w-3 h-3 bg-white border border-blue-200 rotate-45 transform origin-center"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-blue-700 text-2xl font-bold">
+                      {formatPris(beregnedePriser.maanedligPris)}/md
+                    </div>
+                    <div className="text-gray-500 text-xs">
+                      {erPrivat ? 'Inkl. moms' : 'Ekskl. moms'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 text-sm text-gray-500">
+                  <p>
+                    Priserne er baseret på de valgte aftaledetaljer og kan ændres 
+                    hvis bilens oplysninger eller aftalebetingelser ændres.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1238,4 +1067,6 @@ useEffect(() => {
       </div>
     </div>
   );
-}
+};
+
+export default AftaleoverblikPage;

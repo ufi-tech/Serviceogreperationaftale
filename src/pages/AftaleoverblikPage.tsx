@@ -444,19 +444,26 @@ const AftaleoverblikPage: React.FC = () => {
                     {bildataFormData.nummerplade}
                   </div>
                 ) : (
-                  /* Hvis nummerplade ikke findes, viser vi "Ny bil" og fremhæver stelnummeret */
-                  <div className="bg-yellow-50 border border-yellow-300 rounded px-4 py-2 text-center mb-3">
-                    <p className="font-bold text-yellow-800">Ny bil</p>
-                    <p className="text-xs text-yellow-700">Afventer registrering</p>
-                  </div>
+                  /* Hvis nummerplade ikke findes, viser vi "Ny bil" og fremhæver stelnummeret */}
+                  <React.Fragment>
+                    <div className="bg-yellow-50 border border-yellow-300 rounded px-4 py-2 text-center mb-3">
+                      <p className="font-bold text-yellow-800">Ny bil</p>
+                      <p className="text-xs text-yellow-700">Afventer registrering</p>
+                    </div>
+                  </React.Fragment>
                 )}
                 
                 <div className="text-center">
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-base font-medium text-gray-900">
                     {bildataFormData.bilmaerke} {bildataFormData.model}
                   </p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-sm text-gray-600 mt-1">
                     {bildataFormData.betegnelse}
+                  </p>
+                  <p className="text-sm font-medium text-gray-800 mt-2">
+                    {typeof bildataFormData.kilometer === 'string' 
+                      ? parseInt(bildataFormData.kilometer.replace(/[,.\s]/g, ''), 10).toLocaleString('da-DK')
+                      : bildataFormData.kilometer?.toLocaleString('da-DK') || '0'} km
                   </p>
                 </div>
               </div>
@@ -565,7 +572,7 @@ const AftaleoverblikPage: React.FC = () => {
                         <div className={`w-3 h-3 rounded-full bg-blue-500 ${aftaleData.aftaleType === 'service' ? 'block' : 'hidden'}`}></div>
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center">
                           <p className="text-sm font-medium">Service</p>
                           <p className="text-sm font-medium text-blue-600">
                             {new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(beregnedePriser.grundpris * 0.8)}/md
@@ -697,119 +704,64 @@ const AftaleoverblikPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Venstre kolonne: Aftalekomponenter */}
           <div className="md:col-span-2 space-y-6">
-            <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6">
-              <h2 className="text-xl font-semibold mb-4">Bil og aftaleoplysninger</h2>
+            {/* Bil og aftaleoplysninger sektionen er fjernet efter kundens ønske */}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <span className="block text-sm text-gray-600">Mærke</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.bilmaerke}</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Model</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.model}</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Betegnelse</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.betegnelse}</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Første registreringsdato</span>
-                  <span className="font-medium text-gray-900">{formatDate(bildataFormData.foersteRegistreringsdato)}</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Kilometerstand</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.kilometer} km</span>
-                </div>
-                <div>
-                  <span className="block text-sm text-gray-600">Forventet km/år</span>
-                  <span className="font-medium text-gray-900">{bildataFormData.kmAarligt} km</span>
-                </div>
-                {bildataFormData.fabriksgarantiMdr && (
-                  <div>
-                    <span className="block text-sm text-gray-600">Udvidet fabriksgaranti (mdr)</span>
-                    <span className="font-medium text-gray-900">{bildataFormData.fabriksgarantiMdr} mdr</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Justering af Løbetid */}
-            <div className="mt-6">
-              <label htmlFor="loebetid" className="block text-sm font-medium text-gray-700 mb-1">Løbetid (måneder)</label>
-              <select
-                id="loebetid"
-                name="loebetid"
-                value={aftaleData.løbetid}
-                onChange={(e) => handleAftaleDetaljerChange({ løbetid: parseInt(e.target.value, 10) })}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
-              >
-                {[12, 24, 36, 48, 60].map(months => (
-                  <option key={months} value={months}>{months} mdr.</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Justering af Kilometer per år */}
-            <div className="mt-6">
-              <label htmlFor="kilometerPerAar" className="block text-sm font-medium text-gray-700 mb-1">Kilometer pr. år</label>
-              <select
-                id="kilometerPerAar"
-                name="kilometerPerAar"
-                value={aftaleData.kilometerPerÅr}
-                onChange={(e) => handleAftaleDetaljerChange({ kilometerPerÅr: parseInt(e.target.value, 10) })}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
-              >
-                {[10000, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000].map(km => (
-                  <option key={km} value={km}>{km.toLocaleString('da-DK')} km</option>
-                ))}
-              </select>
-            </div>
+            {/* Justering af Kilometer per år sektionen er fjernet efter kundens ønske */}
 
             {/* Vejhjælp sektion - strømlinet uden dropdown */}
-            <div className="mt-6 bg-white rounded-lg p-0 border border-gray-200">
-              <VejhjaelpValg
-                onChange={handleVejhjaelpChange}
-                visKunForetrukneUdbydere={true}
-                initialUdbyder={aftaleData.vejhjaelp?.udbyder || ''}
-                initialPakke={aftaleData.vejhjaelp?.pakke || ''}
-              />
+            <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Vejhjælp</h2>
+              </div>
+              <div className="p-6">
+                <VejhjaelpValg
+                  onChange={handleVejhjaelpChange}
+                  visKunForetrukneUdbydere={true}
+                  initialUdbyder={aftaleData.vejhjaelp?.udbyder || ''}
+                  initialPakke={aftaleData.vejhjaelp?.pakke || ''}
+                />
+              </div>
             </div>
             
             {/* Dækaftale sektion - strømlinet design */}
-            <div className="mt-6 bg-white rounded-lg p-0 border border-gray-200">
-              <div className="flex items-center justify-between px-6 py-4">
-                <div className="flex-1 flex items-center">
-                  <div className="bg-blue-100 rounded-full p-2 mr-3 relative">
-                    <FaCircleNotch className="text-blue-600 text-lg" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="bg-blue-100 rounded-full w-2 h-2"></div>
+            <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Dækaftale</h2>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex items-center">
+                    <div className="bg-blue-100 rounded-full p-2 mr-3 relative">
+                      <FaCircleNotch className="text-blue-600 text-lg" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-blue-100 rounded-full w-2 h-2"></div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center">
-                      <h3 className="font-medium">Dækaftale</h3>
-                      <div className="relative ml-2 group">
-                        <button className="text-gray-400 hover:text-gray-600">
-                          <FaInfoCircle size={16} />
-                        </button>
-                        <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
-                          <div className="text-sm text-gray-600">
-                            <p className="font-semibold mb-1">Dækaftale inkluderer:</p>
-                            <ul className="list-disc pl-4 space-y-1">
-                              <li>Nye kvalitetsdæk efter behov</li>
-                              <li>Dækskifte mellem sæsoner</li>
-                              <li>Opbevaring af ikke-monterede dæk</li>
-                              <li>Afbalancering og montering</li>
-                              <li>Ventilskift og korrekt dæktryk</li>
-                              <li>Mulighed for sommer-, vinter- eller helårsdæk</li>
-                            </ul>
-                            <div className="mt-2 pt-2 border-t border-gray-200">
-                              <p>Vælg mellem budget, economy eller premium dækbrands for at matche dine behov og økonomi.</p>
+                    <div className="flex-1">
+                      <div className="flex items-center">
+                        <h3 className="font-medium">Dækaftale</h3>
+                        <div className="relative ml-2 group">
+                          <button className="text-gray-400 hover:text-gray-600">
+                            <FaInfoCircle size={16} />
+                          </button>
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
+                            <div className="text-sm text-gray-600">
+                              <p className="font-semibold mb-1">Dækaftale inkluderer:</p>
+                              <ul className="list-disc pl-4 space-y-1">
+                                <li>Nye kvalitetsdæk efter behov</li>
+                                <li>Dækskifte mellem sæsoner</li>
+                                <li>Opbevaring af ikke-monterede dæk</li>
+                                <li>Afbalancering og montering</li>
+                                <li>Ventilskift og korrekt dæktryk</li>
+                                <li>Mulighed for sommer-, vinter- eller helårsdæk</li>
+                              </ul>
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <p>Vælg mellem budget, economy eller premium dækbrands for at matche dine behov og økonomi.</p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="absolute bottom-0 left-3 transform translate-y-full">
-                            <div className="w-3 h-3 bg-white rotate-45 transform origin-center"></div>
+                            <div className="absolute bottom-0 left-3 transform translate-y-full">
+                              <div className="w-3 h-3 bg-white rotate-45 transform origin-center"></div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -845,34 +797,39 @@ const AftaleoverblikPage: React.FC = () => {
             </div>
             
             {/* Garantiforsikring sektion - optimeret design */}
-            <div className="mt-6 bg-white rounded-lg p-0 border border-gray-200">
-              <div className="flex items-center justify-between px-6 py-4">
-                <div className="flex-1 flex items-center">
-                  <div className="bg-amber-100 rounded-full p-2 mr-3">
-                    <FaShieldAlt className="text-amber-600 text-lg" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center">
-                      <h3 className="font-medium">Garantiforsikring</h3>
-                      <div className="bg-amber-50 rounded-full px-2 py-0.5 text-xs font-medium text-amber-800 ml-2">Anbefalet</div>
-                      <div className="relative ml-2 group">
-                        <button className="text-gray-400 hover:text-gray-600">
-                          <FaInfoCircle size={16} />
-                        </button>
-                        <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
-                          <div className="text-sm text-gray-600">
-                            <p className="font-semibold mb-1">Garantiforsikring inkluderer:</p>
-                            <ul className="list-disc pl-4 space-y-1">
-                              <li>Dækning af omkostninger ved mekaniske svigt</li>
-                              <li>Beskyttelse efter bilens originale garanti udløber</li>
-                              <li>Dækning af rådgiver efter dit valg</li>
-                              <li>Ingen ubehagelige overraskelser ved dyre reparationer</li>
-                              <li>Valg mellem forskellige dækningsniveauer</li>
-                              <li>Mulighed for 50% medfinansiering fra forhandler</li>
-                            </ul>
-                          </div>
-                          <div className="absolute bottom-0 left-3 transform translate-y-full">
-                            <div className="w-3 h-3 bg-white rotate-45 transform origin-center"></div>
+            <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Garantiforsikring</h2>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex items-center">
+                    <div className="bg-amber-100 rounded-full p-2 mr-3">
+                      <FaShieldAlt className="text-amber-600 text-lg" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center">
+                        <h3 className="font-medium">Garantiforsikring</h3>
+                        <div className="bg-amber-50 rounded-full px-2 py-0.5 text-xs font-medium text-amber-800 ml-2">Anbefalet</div>
+                        <div className="relative ml-2 group">
+                          <button className="text-gray-400 hover:text-gray-600">
+                            <FaInfoCircle size={16} />
+                          </button>
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
+                            <div className="text-sm text-gray-600">
+                              <p className="font-semibold mb-1">Garantiforsikring inkluderer:</p>
+                              <ul className="list-disc pl-4 space-y-1">
+                                <li>Dækning af omkostninger ved mekaniske svigt</li>
+                                <li>Beskyttelse efter bilens originale garanti udløber</li>
+                                <li>Dækning af rådgiver efter dit valg</li>
+                                <li>Ingen ubehagelige overraskelser ved dyre reparationer</li>
+                                <li>Valg mellem forskellige dækningsniveauer</li>
+                                <li>Mulighed for 50% medfinansiering fra forhandler</li>
+                              </ul>
+                            </div>
+                            <div className="absolute bottom-0 left-3 transform translate-y-full">
+                              <div className="w-3 h-3 bg-white rotate-45 transform origin-center"></div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -926,35 +883,40 @@ const AftaleoverblikPage: React.FC = () => {
               )}
             </div>
             
-            {/* Lånebil Valg Sektion - strømlinet design */}
-            <div className="mt-6 bg-white rounded-lg p-0 border border-gray-200">
-              <div className="flex items-center justify-between px-6 py-4">
-                <div className="flex-1 flex items-center">
-                  <div className="bg-purple-100 rounded-full p-2 mr-3">
-                    <FaCar className="text-purple-600 text-lg" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center">
-                      <h3 className="font-medium">Lånebil ved Service</h3>
-                      <div className="relative ml-2 group">
-                        <button className="text-gray-400 hover:text-gray-600">
-                          <FaInfoCircle size={16} />
-                        </button>
-                        <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
-                          <div className="text-sm text-gray-600">
-                            <p className="font-semibold mb-1">Lånebil ved service inkluderer:</p>
-                            <ul className="list-disc pl-4 space-y-1">
-                              <li>Lånebil i samme størrelsesklasse</li>
-                              <li>Fri km under låneperioden</li>
-                              <li>Inkluderet ved alle servicetjek og reparationer</li>
-                              <li>Du betaler kun forbrugsudgifter</li>
-                            </ul>
-                            <div className="mt-2 pt-2 border-t border-gray-200">
-                              <p>Undgå at skulle finde transport løsninger eller besøge værkstedet flere gange.</p>
+            {/* Lånebil sektion */}
+            <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-800">Lånebil</h2>
+              </div>
+              <div className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 flex items-center">
+                    <div className="bg-green-100 rounded-full p-2 mr-3">
+                      <FaCar className="text-green-600 text-lg" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center">
+                        <h3 className="font-medium">Lånebil ved Service</h3>
+                        <div className="relative ml-2 group">
+                          <button className="text-gray-400 hover:text-gray-600">
+                            <FaInfoCircle size={16} />
+                          </button>
+                          <div className="absolute left-0 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10">
+                            <div className="text-sm text-gray-600">
+                              <p className="font-semibold mb-1">Lånebil ved service inkluderer:</p>
+                              <ul className="list-disc pl-4 space-y-1">
+                                <li>Lånebil i samme størrelsesklasse</li>
+                                <li>Fri km under låneperioden</li>
+                                <li>Inkluderet ved alle servicetjek og reparationer</li>
+                                <li>Du betaler kun forbrugsudgifter</li>
+                              </ul>
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <p>Undgå at skulle finde transport løsninger eller besøge værkstedet flere gange.</p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="absolute bottom-0 left-3 transform translate-y-full">
-                            <div className="w-3 h-3 bg-white rotate-45 transform origin-center"></div>
+                            <div className="absolute bottom-0 left-3 transform translate-y-full">
+                              <div className="w-3 h-3 bg-white rotate-45 transform origin-center"></div>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1073,21 +1035,21 @@ const AftaleoverblikPage: React.FC = () => {
                 <div className="mt-4 bg-blue-50 p-3 rounded-md border border-blue-200">
                   <div className="text-center">
                     <div className="text-gray-600 text-sm flex items-center justify-center">
-  Månedlig ydelse
-  <div className="relative ml-1 group">
-    <button className="text-blue-400 hover:text-blue-600 focus:outline-none">
-      <FaInfoCircle size={15} />
-    </button>
-    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10 border border-blue-200">
-      <div className="text-xs text-gray-700">
-        Alle servicepriser (garanti, vejhjælp, dæk mm.) indtastes som årlig pris i admin. Systemet omregner automatisk til månedlig pris ud fra den valgte løbetid.
-      </div>
-      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
-        <div className="w-3 h-3 bg-white border border-blue-200 rotate-45 transform origin-center"></div>
-      </div>
-    </div>
-  </div>
-</div>
+                      Månedlig ydelse
+                      <div className="relative ml-1 group">
+                        <button className="text-blue-400 hover:text-blue-600 focus:outline-none">
+                          <FaInfoCircle size={15} />
+                        </button>
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-white rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-10 border border-blue-200">
+                          <div className="text-xs text-gray-700">
+                            Alle servicepriser (garanti, vejhjælp, dæk mm.) indtastes som årlig pris i admin. Systemet omregner automatisk til månedlig pris ud fra den valgte løbetid.
+                          </div>
+                          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+                            <div className="w-3 h-3 bg-white border border-blue-200 rotate-45 transform origin-center"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <div className="text-blue-700 text-2xl font-bold">
                       {formatPris(beregnedePriser.maanedligPris)}/md
                     </div>
