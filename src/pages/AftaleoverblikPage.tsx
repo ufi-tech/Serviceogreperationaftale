@@ -444,8 +444,8 @@ const AftaleoverblikPage: React.FC = () => {
                     {bildataFormData.nummerplade}
                   </div>
                 ) : (
-                  /* Hvis nummerplade ikke findes, viser vi "Ny bil" og fremhæver stelnummeret */}
                   <React.Fragment>
+                    {/* Hvis nummerplade ikke findes, viser vi "Ny bil" og fremhæver stelnummeret */}
                     <div className="bg-yellow-50 border border-yellow-300 rounded px-4 py-2 text-center mb-3">
                       <p className="font-bold text-yellow-800">Ny bil</p>
                       <p className="text-xs text-yellow-700">Afventer registrering</p>
