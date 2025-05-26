@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FaCar, 
-  FaQuestionCircle, 
+  // FaQuestionCircle, // Ubrugt import fjernet
   FaTachometerAlt, 
   FaSearch, 
   FaIdCard, 
@@ -17,9 +17,9 @@ import {
   FaChevronUp,
   FaSave,
   FaHistory,
-  FaTrash,
+  // FaTrash, // Ubrugt import fjernet
   FaCloudDownloadAlt,
-  FaExclamationTriangle
+  // FaExclamationTriangle // Ubrugt import fjernet
 } from 'react-icons/fa';
 import { useMoms } from '../contexts/MomsContext';
 import { useBilProfiler } from '../contexts/BilProfilerContext';
@@ -38,12 +38,12 @@ interface DaekTypeData {
   stoerrelse: DaekStoerrelse;
 }
 
-interface DaekAftaleData {
-  valgteTyper: { sommer: boolean; vinter: boolean; helaar: boolean; };
-  sommer?: DaekTypeData;
-  vinter?: DaekTypeData;
-  helaar?: DaekTypeData;
-}
+// interface DaekAftaleData {
+//   valgteTyper: { sommer: boolean; vinter: boolean; helaar: boolean; };
+//   sommer?: DaekTypeData;
+//   vinter?: DaekTypeData;
+//   helaar?: DaekTypeData;
+// }
 
 interface BilData {
   id: string;
@@ -129,38 +129,21 @@ const normalizeDate = (dateStr: string): string => {
     console.error('Fejl ved konvertering af dato via Date objekt:', error);
   }
   
-  // Hvis ikke et kendt format, logge og returner uændret
   console.warn('Kunne ikke genkende datoformat:', trimmedDate);
   return dateStr;
 };
 
-// Hjælpefunktion til at formatere dato til visning (DD.MM.YYYY)
-const formatDateForDisplay = (dateStr: string): string => {
-  if (!dateStr) return '';
-  
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    // Format YYYY-MM-DD, konverter til DD.MM.YYYY
-    const [year, month, day] = dateStr.split('-');
-    return `${day}.${month}.${year}`;
-  }
-  
-  return dateStr;
-};
-
 const Bildata: React.FC = () => {
-  // Anvender MomsContext, BilProfilerContext, og navigation
   const navigate = useNavigate();
   const { erPrivat, setErPrivat, visningsTekst, formatPris } = useMoms();
   const { gemteBilProfiler, gemBilProfil, findBilProfilByNummerplade, findBilProfilByStelnummer } = useBilProfiler();
   const { setStepValidated } = useValidation();
   
-  // References til dropdown menuer
   const maerkeDropdownRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const historikDropdownRef = useRef<HTMLDivElement>(null);
   
   const [erVarebil, setErVarebil] = useState<boolean>(false);
-  const [harDaekaftale, setHarDaekaftale] = useState<boolean>(false);
   const [soegemetode, setSoegemetode] = useState<'nummerplade' | 'stelnummer'>('nummerplade');
   const [validationErrors, setValidationErrors] = useState<{
     nummerplade?: string;
@@ -171,7 +154,6 @@ const Bildata: React.FC = () => {
   const [isBilProfilGemt, setIsBilProfilGemt] = useState<boolean>(false);
   const [showSavePrompt, setShowSavePrompt] = useState<boolean>(false);
   
-  // Autocomplete states
   const [showMaerkeDropdown, setShowMaerkeDropdown] = useState<boolean>(false);
   const [showModelDropdown, setShowModelDropdown] = useState<boolean>(false);
   const [filteredBrands, setFilteredBrands] = useState<BrandOption[]>(carBrands);
@@ -179,13 +161,15 @@ const Bildata: React.FC = () => {
   const [selectedBrand, setSelectedBrand] = useState<BrandOption | null>(null);
   
   // Priser og tillæg (disse ville normalt hentes fra admin/backend)
-  const [priser, setPriser] = useState({
+  const [priser] = useState({
     basisPris: 250, // Pris pr. måned uden moms for basis service
     vejhjaelpTillaeg: 40, // Pris pr. måned uden moms for vejhjælp
-    varebilTillaegProcent: 15 // Procentvis tillæg for varebiler
+    varebilTillaegProcent: 15, // Procentvis tillæg for varebiler
+    grundpris: 0,
+    daekpris: 0,
+    totalPris: 0
   });
   
-  // Luk dropdowns hvis der klikkes udenfor
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (maerkeDropdownRef.current && !maerkeDropdownRef.current.contains(event.target as Node)) {
@@ -264,23 +248,10 @@ const Bildata: React.FC = () => {
   // Tjekker om alle obligatoriske felter er udfyldt
   const [formComplete, setFormComplete] = useState<boolean>(false);
   
-  // Dette useEffect håndterer individuelle feltfejl og opdaterer fieldErrors.
-  // Det skal IKKE længere selv sætte formComplete.
-  useEffect(() => {
-    const errors: Partial<Record<keyof FormData, string>> = {};
-    // Eksempel på validering for nummerplade (kan udvides)
-    if (formData.nummerplade && !/^[A-ZÆØÅ]{2}[0-9]{5}$/i.test(formData.nummerplade.replace(/\s/g, ''))) {
-      // errors.nummerplade = 'Ugyldigt format'; // Dette er eksempel, faktisk validering er mere kompleks
-    }
-    // Tilføj lignende for stelnummer etc. hvis fieldErrors skal bruges aktivt til at vise fejl
-    // setFieldErrors(errors); // Opdater fieldErrors state her hvis nødvendigt
+  // Fjernet useEffect der håndterer individuelle feltfejl for at undgå uendelige loops
+  // Denne logik er nu flyttet til validateForm funktionen
 
-    // const allFieldsValid = Object.values(fieldErrors).every(error => !error);
-    // FJERN setFormComplete(allFieldsValid);
-  }, [formData]); // Beholder formData, fjern fieldErrors hvis det skaber loop, eller juster logikken
-  // Overvej om fieldErrors skal være i dependency array, hvis dette useEffect selv opdaterer fieldErrors.
-  // For nu antager vi, at fieldErrors opdateres af andre handlers som f.eks. validateAndSet.
-
+  // Memoizer validateForm funktionen med useCallback for at undgå genskabelse ved hver rendering
   const validateForm = useCallback(() => {
     let isValid = true;
     const newFieldErrors: any = {};
@@ -288,6 +259,11 @@ const Bildata: React.FC = () => {
       'bilmaerke', 'model', 'hk', 'foersteRegistreringsdato', 'kilometer', 'kmAarligt'
     ];
 
+    // Eksempel på validering for nummerplade (kan udvides)
+    if (formData.nummerplade && !/^[A-ZÆØÅ]{2}[0-9]{5}$/i.test(formData.nummerplade.replace(/\s/g, ''))) {
+      // newFieldErrors.nummerplade = 'Ugyldigt format'; // Dette er eksempel, faktisk validering er mere kompleks
+    }
+    
     requiredFields.forEach(field => {
       if (!formData[field] || formData[field]?.trim() === '') {
         newFieldErrors[field] = `Feltet er påkrævet`;
@@ -331,14 +307,15 @@ const Bildata: React.FC = () => {
 
     // Return errors and validity status instead of setting state here
     return { isValid, errors: newFieldErrors }; 
-  }, [formData, soegemetode]); // Dependencies remain the same
+  }, [formData, soegemetode]); // Tilføjet dependencies ifølge ESLint regel
 
+  // Bruger funktionel opdatering af state for at undgå uendelige loops
   useEffect(() => {
     const { isValid, errors } = validateForm(); // Call the refactored validateForm
-    setFieldErrors(errors);                     // Set field errors here
-    setFormComplete(isValid);                   // Set form completeness
+    setFieldErrors(prev => ({ ...prev, ...errors })); // Funktionel opdatering af state
+    setFormComplete(isValid);                        // Set form completeness
     setStepValidated('bildata', isValid); 
-  }, [formData, validateForm, setStepValidated]); // Dependencies remain the same
+  }, [formData, validateForm, setStepValidated]); // Tilføjet alle dependencies ifølge ESLint regel
 
   const validateAndSet = (field: keyof FormData, value: string) => {
     let error: string | undefined;
